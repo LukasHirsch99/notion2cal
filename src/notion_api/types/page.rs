@@ -155,6 +155,22 @@ pub struct PageDesc {
     // pub last_edited_by: UserRef,
 }
 
+impl PageDesc {
+    pub fn title_str(&self) -> String {
+        let icon = match &self.icon {
+            Some(Icon::Emoji { emoji }) => emoji.clone() + " - ",
+            _ => String::new(),
+        };
+        icon + self
+            .title
+            .iter()
+            .map(|t| t.plain_text.as_ref())
+            .collect::<Vec<&str>>()
+            .join(", ")
+            .as_str()
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Icon {
