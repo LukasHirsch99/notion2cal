@@ -5,7 +5,7 @@ pub mod query_datasource;
 pub mod search_by_title;
 pub mod types;
 
-pub const BASE_URL: &'static str = "https://api.notion.com/v1/";
+pub const BASE_URL: &str = "https://api.notion.com/v1/";
 
 #[derive(Clone)]
 pub struct NotionApi {
@@ -32,6 +32,6 @@ impl NotionApi {
             .default_headers(headers)
             .build()
             .unwrap();
-        NotionApi { client: client }
+        NotionApi { client }
     }
 }

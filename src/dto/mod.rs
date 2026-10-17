@@ -23,7 +23,7 @@ impl DatasourceDto {
                 .title
                 .iter()
                 .fold(String::new(), |acc, e| acc + e.plain_text.as_str()),
-            icon: icon,
+            icon,
             url: page.url.clone(),
         }
     }

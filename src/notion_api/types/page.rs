@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
 use serde::{Deserialize, Serialize};
@@ -12,8 +12,7 @@ pub struct PageTitle {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PagePropertyTpye {
-    Int,
-    Float,
+    Number,
     Date,
     Title,
     RichText,
@@ -90,20 +89,28 @@ pub enum PagePropertyValue {
     Other,
 }
 
-impl PagePropertyValue {
-    pub fn to_string(&self) -> String {
+impl Display for PagePropertyValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PagePropertyValue::Title { title } => title
-                .iter()
-                .map(|t| t.plain_text.as_deref().unwrap_or(""))
-                .collect::<Vec<&str>>()
-                .join(", "),
-            PagePropertyValue::RichText { rich_text } => rich_text
-                .iter()
-                .map(|t| t.plain_text.as_deref().unwrap_or(""))
-                .collect::<Vec<&str>>()
-                .join(", "),
-            _ => String::new(),
+            PagePropertyValue::Title { title } => write!(
+                f,
+                "{}",
+                title
+                    .iter()
+                    .map(|t| t.plain_text.as_deref().unwrap_or(""))
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            ),
+            PagePropertyValue::RichText { rich_text } => write!(
+                f,
+                "{}",
+                rich_text
+                    .iter()
+                    .map(|t| t.plain_text.as_deref().unwrap_or(""))
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            ),
+            _ => write!(f, ""),
         }
     }
 }

@@ -1,7 +1,4 @@
-use crate::notion_api::{
-    BASE_URL, NotionApi,
-    common::RequestStatus, types::page::Page,
-};
+use crate::notion_api::{BASE_URL, NotionApi, common::RequestStatus, types::page::Page};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -35,9 +32,7 @@ impl NotionApi {
             "{}data_sources/{}/query?filter_properties[]={}&filter_properties[]={}&filter_properties[]={}",
             BASE_URL, datasource_id, date_id, title_id, description_id)
         )
-        .json(&DatasourceQueryReq{
-                start_cursor: start_cursor
-            })
+        .json(&DatasourceQueryReq{ start_cursor })
         .send()
         .await?
         .error_for_status()?
