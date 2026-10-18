@@ -1,15 +1,27 @@
-use crate::notion_api::NotionApi;
+use crate::{
+    components::card::{card, card_header, card_title},
+    notion_api::NotionApi,
+};
 use std::env;
 use topcoat::{
-    Result, asset::{AssetBundle, RouterBuilderAssetExt}, context::{Cx, app_context}, router::{Router, RouterBuilderDiscoverExt, module_router, page}, runtime::{Event, RouterBuilderRuntimeExt, shard, signal}, view::{View, component, view},
+    Result,
+    asset::{AssetBundle, RouterBuilderAssetExt},
+    context::{Cx, app_context},
+    router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page},
+    runtime::{Event, RouterBuilderRuntimeExt, shard, signal},
+    tailwind,
+    view::{View, attributes, component, view},
 };
 
 mod calendar;
+mod components;
 mod datasources;
 mod dto;
 mod event_collector;
 mod notion_api;
 mod query_datasource;
+
+use components::input::input;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,8 +46,8 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-#[page]
-async fn home() -> Result<impl View> {
+#[layout]
+async fn layout(slot: Slot<'_>) -> Result<impl View> {
     Ok(view! {
         <!DOCTYPE html>
         <html>
@@ -43,12 +55,17 @@ async fn home() -> Result<impl View> {
                 <title>"Notion2Cal"</title>
                 topcoat::dev::script()
                 topcoat::runtime::script()
+                <link rel="stylesheet" href=(tailwind::stylesheet!())>
             </head>
-            <body>
-                hello(name: "World")
-                search()
-            </body>
+            <body class="p-5">(slot)</body>
         </html>
+    })
+}
+
+#[page]
+async fn home() -> Result<impl View> {
+    Ok(view! {
+        search()
     })
 }
 
@@ -57,8 +74,11 @@ async fn search(cx: &Cx) -> Result<impl View> {
     let query = signal(cx, String::new);
 
     Ok(view! {
-        <input @input=$(|e: Event| query.set(e.target.value))>
-        // Updates as the user types.
+        input(attrs: attributes! {
+            @input=$(|e: Event| query.set(e.target.value))
+            placeholder="Datasource name..."
+            class="mb-4"
+        })
         datasource_results(query: $(query.get()))
     })
 }
@@ -66,26 +86,24 @@ async fn search(cx: &Cx) -> Result<impl View> {
 #[shard]
 async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
     let api: &NotionApi = app_context(cx);
-    let sources = api.search_datasources(&query).await;
+    let sources = api
+        .search_datasources(&query)
+        .await
+        .map_err(|e| topcoat::Error::msg(e))?;
 
-    match sources {
-        Ok(sources) => Ok(view! {
-            <ul>
-                for source in sources {
-                    <li> (source.title_str()) </li>
-                }
-            </ul>
-        }),
-        Err(e) => {
-            println!("error: {}", e);
-            Err(topcoat::Error::msg(e))
-        }
-    }
-}
-
-#[component]
-async fn hello(name: &str) -> Result<impl View> {
     Ok(view! {
-        <h1>"Hello, " (name) "!"</h1>
+        <div class="flex gap-2 flex-col">
+            for source in sources {
+                    card(
+                        attrs: attributes! { class="w-md" },
+                        card_header(
+                            card_title(
+                                attrs: attributes! { class="bold" },
+                                (source.title_str())
+                            )
+                        )
+                    )
+            }
+        </div>
     })
 }

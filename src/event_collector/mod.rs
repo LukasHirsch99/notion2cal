@@ -10,9 +10,9 @@ use crate::notion_api::{
 #[query_params(error = bad_request)]
 pub struct EventQuery {
     pub datasource_id: String,
-    pub title_id: String,
-    pub date_id: String,
-    pub description_id: Option<String>,
+    pub title_col: String,
+    pub date_col: String,
+    pub description_col: Option<String>,
 }
 
 pub async fn create_calendar(api: &NotionApi, query: &EventQuery) -> anyhow::Result<Calendar> {
@@ -20,9 +20,9 @@ pub async fn create_calendar(api: &NotionApi, query: &EventQuery) -> anyhow::Res
         .query_datasource(
             &query.datasource_id,
             None,
-            &query.date_id,
-            &query.title_id,
-            query.description_id.as_ref().unwrap(),
+            &query.date_col,
+            &query.title_col,
+            query.description_col.as_ref().unwrap(),
         )
         .await?;
 
@@ -38,9 +38,9 @@ pub async fn create_calendar(api: &NotionApi, query: &EventQuery) -> anyhow::Res
             .query_datasource(
                 &query.datasource_id,
                 res.next_cursor,
-                &query.date_id,
-                &query.title_id,
-                query.description_id.as_ref().unwrap(),
+                &query.date_col,
+                &query.title_col,
+                query.description_col.as_ref().unwrap(),
             )
             .await?;
     }
@@ -48,20 +48,20 @@ pub async fn create_calendar(api: &NotionApi, query: &EventQuery) -> anyhow::Res
 }
 
 fn create_event_from_page(page: &Page, query: &EventQuery) -> Option<Event> {
-    let title = page.properties.get(&query.title_id)?.value.to_string();
+    let title = page.properties.get(&query.title_col)?.value.to_string();
 
     let mut event = Event::new();
     event.summary(&title);
     event.uid(&page.id);
 
-    if let Some(desc_id) = &query.description_id
+    if let Some(desc_id) = &query.description_col
         && let Some(desc) = page.properties.get(desc_id)
     {
         event.description(&desc.value.to_string());
     }
 
     if let Some(PagePropertyValue::Date { date: Some(date) }) =
-        page.properties.get(&query.date_id).map(|p| &p.value)
+        page.properties.get(&query.date_col).map(|p| &p.value)
     {
         match (&date.start, &date.end) {
             (NotionTimestamp::DateTime(start), end) => {

@@ -11,6 +11,9 @@ icalendar = "0.17.15"
 reqwest = { version = "0.13.5", features = ["json"] }
 serde = { version =  "1.0.229", features = ["derive"] }
 tokio = { version = "1.0", features = ["full", "macros", "rt-multi-thread"] }
-topcoat = "0.10.0"
+topcoat = { version = "0.10.0", features = ["tailwind", "ui"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[build-dependencies]
+topcoat = { version = "0.10.0", default-features = false, features = ["tailwind"] }
