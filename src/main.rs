@@ -13,6 +13,7 @@ use topcoat::{
     view::{View, attributes, component, view},
 };
 
+mod authorize;
 mod calendar;
 mod components;
 mod datasources;
@@ -23,6 +24,13 @@ mod query_datasource;
 
 use components::input::input;
 
+struct NotionConnectionSecrets {
+    oauth_client_id: String,
+    oauth_client_secret: String,
+    notion_auth_url: String,
+    redirect_uri: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // initialize tracing
@@ -32,6 +40,11 @@ async fn main() -> Result<()> {
 
     let api_key = env::var("NOTION_API_KEY").expect("NOTION_API_KEY needs to be set");
     let api_version = env::var("NOTION_API_VERSION").expect("NOTION_API_VERSION needs to be set");
+    let oauth_client_id = env::var("OAUTH_CLIENT_ID").expect("OAUTH_CLIENT_ID needs to be set");
+    let oauth_client_secret =
+        env::var("OAUTH_CLIENT_SECRET").expect("OAUTH_CLIENT_SECRET needs to be set");
+    let notion_auth_url = env::var("NOTION_AUTH_URL").expect("NOTION_AUTH_URL needs to be set");
+    let redirect_uri = env::var("REDIRECT_URI").expect("REDIRECT_URI needs to be set");
 
     let api = NotionApi::new(&api_key, &api_version);
 
@@ -40,6 +53,12 @@ async fn main() -> Result<()> {
         .assets(AssetBundle::load()?)
         .runtime()
         .app_context(api)
+        .app_context(NotionConnectionSecrets {
+            oauth_client_id,
+            oauth_client_secret,
+            notion_auth_url,
+            redirect_uri,
+        })
         .build();
 
     topcoat::start(router).await?;
