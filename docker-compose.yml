@@ -1,11 +1,17 @@
 services:
   notion2cal:
-    env_file: ".env"
+    env_file: ".env-docker"
     platform: linux/arm64
     container_name: notion2cal
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3001"
     restart: unless-stopped
+
+  db:
+    env_file: ".env-docker"
+    image: postgres
+    restart: always
+    shm_size: 128mb

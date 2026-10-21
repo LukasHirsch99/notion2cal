@@ -1,15 +1,15 @@
 use reqwest::StatusCode;
 use topcoat::{
     Result,
-    context::{Cx, app_context},
-    router::{content::Json, query_params, response::IntoResponse, route},
+    context::Cx,
+    router::{content::Json, error::RouterErrorExt, query_params, response::IntoResponse, route},
 };
 
-use crate::{event_collector::EventQuery, notion_api::NotionApi};
+use crate::{event_collector::EventQuery, middleware::current_api};
 
 #[route(GET)]
 async fn get(cx: &Cx) -> Result<impl IntoResponse> {
-    let api: &NotionApi = app_context(cx);
+    let api = current_api(cx).await.ok_or_unauthorized()?;
     let query = query_params::<EventQuery>(cx)?;
     let r = api
         .query_datasource(

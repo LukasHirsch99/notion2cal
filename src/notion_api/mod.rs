@@ -3,6 +3,7 @@ use reqwest::header;
 pub mod common;
 pub mod query_datasource;
 pub mod search_by_title;
+pub mod token;
 pub mod types;
 
 pub const BASE_URL: &str = "https://api.notion.com/v1/";
