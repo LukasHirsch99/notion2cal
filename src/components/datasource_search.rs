@@ -2,6 +2,7 @@ use crate::{
     components::input::input,
     dto::DatasourceDto,
     middleware::{current_api, require_auth},
+    notion_api::types::page::{PageDesc, PagePropertyTpye},
 };
 use topcoat::{
     Result,
@@ -66,6 +67,16 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
     })
 }
 
+fn source_eligible(source: &PageDesc) -> bool {
+    matches!(
+        source
+            .properties
+            .iter()
+            .find(|prop| prop.1.field_type == PagePropertyTpye::Date),
+        Some(_)
+    )
+}
+
 #[shard]
 async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
     let api = current_api(cx).await.ok_or_unauthorized()?;
@@ -74,11 +85,34 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
         .await
         .map_err(topcoat::Error::msg)?;
 
-    let rows: Vec<(Option<String>, String)> = sources
+    struct SourceRow {
+        emoji: Option<String>,
+        title: String,
+        eligible: bool,
+        row_class: &'static str,
+        tile_class: &'static str,
+    }
+
+    let rows: Vec<SourceRow> = sources
         .iter()
         .map(|source| {
             let dto = DatasourceDto::from_page(source);
-            (dto.icon, dto.title)
+            let eligible = source_eligible(source);
+            SourceRow {
+                emoji: dto.icon,
+                title: dto.title,
+                eligible,
+                row_class: if eligible {
+                    "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/5"
+                } else {
+                    "flex items-center gap-3 px-4 py-3 text-muted-foreground"
+                },
+                tile_class: if eligible {
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground/5 text-base leading-none"
+                } else {
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground/5 text-base leading-none opacity-60"
+                },
+            }
         })
         .collect();
 
@@ -128,22 +162,22 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
                 <ul
                     class="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-xs"
                 >
-                    for (emoji, title) in rows {
-                        <li
-                            class="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/5"
-                        >
-                            <span
-                                class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground/5 text-base leading-none"
-                                aria-hidden="true"
-                            >
-                                match emoji {
+                    for row in rows {
+                        <li class=(row.row_class)>
+                            <span class=(row.tile_class) aria-hidden="true">
+                                match row.emoji {
                                     Some(emoji) => (emoji),
                                     None => icon(data: DATASOURCE, size: 16),
                                 }
                             </span>
                             <span class="min-w-0 flex-1 truncate text-sm font-medium">
-                                (title)
+                                (row.title)
                             </span>
+                            if !row.eligible {
+                                <span class="shrink-0 text-xs">
+                                    "Needs a date property"
+                                </span>
+                            }
                         </li>
                     }
                 </ul>
