@@ -1,20 +1,19 @@
 use crate::{
-    components::card::{card, card_header, card_title},
-    middleware::{current_api, current_user, require_auth},
-    notion_api::NotionApi,
+    components::{datasource_search::search, welcome::welcome},
+    middleware::current_user,
 };
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use topcoat::{
     Result,
     asset::{AssetBundle, RouterBuilderAssetExt},
-    context::{Cx, app_context},
+    context::Cx,
     cookie::RouterBuilderCookieExt,
-    router::{RouterBuilderDiscoverExt, Slot, error::RouterErrorExt, layout, module_router, page},
-    runtime::{Event, RouterBuilderRuntimeExt, shard, signal},
+    router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page},
+    runtime::RouterBuilderRuntimeExt,
     session::{RouterBuilderSessionExt, SessionConfig},
     tailwind,
-    view::{View, attributes, component, view},
+    view::{View, view},
 };
 
 mod auth;
@@ -26,8 +25,6 @@ mod event_collector;
 mod middleware;
 mod notion_api;
 mod query_datasource;
-
-use components::input::input;
 
 struct AppConfig {
     oauth_client_id: String,
@@ -88,6 +85,7 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
         <html>
             <head>
                 <title>"Notion2Cal"</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
                 topcoat::dev::script()
                 topcoat::runtime::script()
                 <link rel="stylesheet" href=(tailwind::stylesheet!())>
@@ -108,55 +106,5 @@ async fn home(cx: &Cx) -> Result<impl View> {
         } else {
             welcome()
         }
-    })
-}
-
-#[component]
-async fn welcome(cx: &Cx) -> Result<impl View> {
-    let secrets: &AppConfig = app_context(cx);
-    Ok(view! {
-        <h1>"Welcome to Notion2Cal"</h1>
-        <a href=(secrets.notion_auth_url.clone())>"Login with Notion"</a>
-    })
-}
-
-#[component]
-async fn search(cx: &Cx) -> Result<impl View> {
-    let query = signal(cx, String::new);
-    let user = require_auth(cx).await?;
-
-    Ok(view! {
-        <h1>"Hello " (user.username.clone().unwrap_or(user.id.to_string())) "!"</h1>
-        input(attrs: attributes! {
-            @input=$(|e: Event| query.set(e.target.value))
-            placeholder="Datasource name..."
-            class="mb-4"
-        })
-        datasource_results(query: $(query.get()))
-    })
-}
-
-#[shard]
-async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
-    let api = current_api(cx).await.ok_or_unauthorized()?;
-    let sources = api
-        .search_datasources(&query)
-        .await
-        .map_err(|e| topcoat::Error::msg(e))?;
-
-    Ok(view! {
-        <div class="flex gap-2 flex-col">
-            for source in sources {
-                    card(
-                        attrs: attributes! { class="w-md" },
-                        card_header(
-                            card_title(
-                                attrs: attributes! { class="bold" },
-                                (source.title_str())
-                            )
-                        )
-                    )
-            }
-        </div>
     })
 }
