@@ -85,6 +85,18 @@ pub enum PagePropertyValue {
     RichText {
         rich_text: Vec<TitleProperty>,
     },
+    Email {
+        email: Option<String>,
+    },
+    Checkbox {
+        checkbox: bool,
+    },
+    CreatedTime {
+        created_time: NaiveDate,
+    },
+    Formula {
+        formula: Box<PagePropertyValue>,
+    },
     #[serde(other)]
     Other,
 }
@@ -110,7 +122,7 @@ impl Display for PagePropertyValue {
                     .collect::<Vec<&str>>()
                     .join(", ")
             ),
-            _ => write!(f, ""),
+            _ => write!(f, "Type not implemented"),
         }
     }
 }
