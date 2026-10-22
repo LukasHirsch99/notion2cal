@@ -25,7 +25,6 @@ mod dto;
 mod event_collector;
 mod middleware;
 mod notion_api;
-mod query_datasource;
 
 struct AppConfig {
     oauth_client_id: String,

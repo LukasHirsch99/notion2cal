@@ -8,17 +8,8 @@ use crate::{
 };
 use chrono::{Duration, Utc};
 use icalendar::{Calendar, Component, Event, EventLike};
-use topcoat::router::query_params;
 use uuid::Uuid;
 pub mod template;
-
-#[query_params(error = bad_request)]
-pub struct EventQuery {
-    pub datasource_id: String,
-    pub title_col: String,
-    pub date_col: String,
-    pub description_col: Option<String>,
-}
 
 pub async fn create_calendar(
     api: &NotionApi,
@@ -61,14 +52,15 @@ pub async fn create_calendar(
 }
 
 fn create_event_from_page(page: &Page, config: &CalendarConfig) -> Option<Event> {
-    let title = template::render(&config.title_template, &page.properties).ok()?;
+    let title = template::render(&config.title_template, &page.properties, &page.url).ok()?;
 
     let mut event = Event::new();
     event.summary(&title);
     event.uid(&page.id);
 
     if !config.description_template.is_empty()
-        && let Ok(description) = template::render(&config.description_template, &page.properties)
+        && let Ok(description) =
+            template::render(&config.description_template, &page.properties, &page.url)
         && !description.is_empty()
     {
         event.description(&description);

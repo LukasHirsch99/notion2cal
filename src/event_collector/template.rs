@@ -5,6 +5,10 @@ use std::{collections::HashMap, fmt::Display};
 
 pub type Template = Vec<Segment>;
 
+/// Reserved field for the Notion page URL. It resolves to the page's URL rather
+/// than a property value.
+pub const PAGE_URL_FIELD: &str = "Page URL";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Segment {
     Text(String),
@@ -58,7 +62,7 @@ pub fn parse<T>(src: &str, props: HashMap<String, T>) -> Result<Template, ParseE
                     return Err(ParseError::UnclosedBrace(i));
                 }
                 name = name.trim().to_owned();
-                if props.get(&name).is_none() {
+                if name != PAGE_URL_FIELD && props.get(&name).is_none() {
                     return Err(ParseError::InvalidField(i, name));
                 }
                 if !text.is_empty() {
@@ -107,6 +111,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn accepts_the_page_url_field() {
+        let template = parse("Open {Page URL}", HashMap::<String, ()>::new()).unwrap();
+
+        assert_eq!(
+            template,
+            vec![
+                Segment::Text("Open ".to_owned()),
+                Segment::Field(PAGE_URL_FIELD.to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_the_page_url() {
+        let template = parse("{Page URL}", HashMap::<String, ()>::new()).unwrap();
+
+        assert_eq!(
+            render(&template, &HashMap::new(), "https://notion.so/page").unwrap(),
+            "https://notion.so/page"
+        );
+    }
+
+    #[test]
     fn formats_a_template_back_into_source_text() {
         let template = vec![
             Segment::Text("Meet {".to_owned()),
@@ -121,11 +148,13 @@ mod tests {
 pub fn render(
     segments: &Template,
     props: &HashMap<String, PageProperty>,
+    page_url: &str,
 ) -> Result<String, String> {
     let mut out = String::new();
     for seg in segments {
         match seg {
             Segment::Text(text) => out.push_str(text),
+            Segment::Field(field) if field == PAGE_URL_FIELD => out.push_str(page_url),
             Segment::Field(field) => match props.get(field) {
                 Some(prop) => out.push_str(&prop.value.to_string()),
                 None => return Err(format!("unknown field: {}", field)),

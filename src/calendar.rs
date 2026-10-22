@@ -9,7 +9,7 @@ use crate::{
     db::calendar::{CalendarConfig, delete_for_user, find_feed, find_for_user, update_calendar},
     event_collector::{
         self,
-        template::{self, Template},
+        template::{self, PAGE_URL_FIELD, Template},
     },
     middleware::{require_api, require_auth},
     notion_api::{NotionApi, query_datasource::DataSource, types::page::PagePropertyTpye},
@@ -217,7 +217,9 @@ async fn calendar_form(
                             <p class="mt-1.5 text-xs text-muted-foreground">
                                 "Insert a column with "
                                 <code class="font-mono">"{Column Name}"</code>
-                                ". Available: "
+                                ", or "
+                                <code class="font-mono">"{Page URL}"</code>
+                                " for the link to the Notion page. Available: "
                                 (columns_hint)
                             </p>
                         </div>
@@ -242,7 +244,9 @@ async fn calendar_form(
                             <p class="mt-1.5 text-xs text-muted-foreground">
                                 "Uses the same "
                                 <code class="font-mono">"{Column Name}"</code>
-                                " syntax."
+                                " syntax, including "
+                                <code class="font-mono">"{Page URL}"</code>
+                                "."
                             </p>
                         </div>
 
@@ -329,11 +333,12 @@ async fn save_calendar(
         return Ok("Title template is required.".to_owned());
     }
 
-    let columns: HashMap<String, ()> = datasource
+    let mut columns: HashMap<String, ()> = datasource
         .properties
         .keys()
         .map(|name| (name.clone(), ()))
         .collect();
+    columns.insert(PAGE_URL_FIELD.to_owned(), ());
 
     let title_template = match template::parse(&title_template, columns.clone()) {
         Ok(template) => template,
