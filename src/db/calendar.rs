@@ -9,6 +9,10 @@ pub struct CalendarConfig {
     pub date_col: String,
     pub title_template: Template,
     pub description_template: Template,
+    #[serde(default)]
+    pub location_template: Template,
+    #[serde(default)]
+    pub url_template: Template,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -125,6 +129,8 @@ mod tests {
             date_col: date_col.to_owned(),
             title_template: vec![Segment::Text("Event".to_owned())],
             description_template: Vec::new(),
+            location_template: Vec::new(),
+            url_template: Vec::new(),
         }
     }
 
@@ -143,6 +149,17 @@ mod tests {
         .fetch_one(pool)
         .await
         .unwrap()
+    }
+
+    #[test]
+    fn loads_calendars_saved_before_location_and_url_templates() {
+        let config: CalendarConfig = serde_json::from_str(
+            r#"{"date_col":"Start","title_template":[{"Text":"Event"}],"description_template":[]}"#,
+        )
+        .unwrap();
+
+        assert!(config.location_template.is_empty());
+        assert!(config.url_template.is_empty());
     }
 
     #[sqlx::test]

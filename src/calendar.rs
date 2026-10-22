@@ -57,6 +57,18 @@ fn columns_hint(datasource: &DataSource) -> String {
     columns.join(", ")
 }
 
+/// Parses an optional template field. A blank field means "not set".
+fn optional_template(
+    src: &str,
+    label: &str,
+    columns: &HashMap<String, ()>,
+) -> Result<Template, String> {
+    if src.trim().is_empty() {
+        return Ok(Template::new());
+    }
+    template::parse(src, columns.clone()).map_err(|error| format!("{label} template: {error}."))
+}
+
 /// Configure how a Notion datasource becomes a calendar.
 #[page("/calendar/{datasource_id}")]
 async fn configure_calendar(cx: &Cx) -> Result<impl View> {
@@ -86,7 +98,9 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
             columns_hint: columns_hint(&datasource),
             date_col: default_date_col,
             title_template: default_title,
-            description_template: String::new()
+            description_template: String::new(),
+            location_template: String::new(),
+            url_template: String::new()
         )
     })
 }
@@ -125,7 +139,9 @@ async fn edit_calendar(cx: &Cx) -> Result<impl View> {
             columns_hint: columns_hint(&datasource),
             date_col: config.date_col.clone(),
             title_template: template::format_source(&config.title_template),
-            description_template: template::format_source(&config.description_template)
+            description_template: template::format_source(&config.description_template),
+            location_template: template::format_source(&config.location_template),
+            url_template: template::format_source(&config.url_template)
         )
     })
 }
@@ -141,10 +157,14 @@ async fn calendar_form(
     date_col: String,
     title_template: String,
     description_template: String,
+    location_template: String,
+    url_template: String,
 ) -> Result<impl View> {
     let date_col = signal(cx, || date_col);
     let title_template = signal(cx, || title_template);
     let description_template = signal(cx, || description_template);
+    let location_template = signal(cx, || location_template);
+    let url_template = signal(cx, || url_template);
     let error = signal(cx, String::new);
 
     let is_edit = calendar_id.is_some();
@@ -250,6 +270,59 @@ async fn calendar_form(
                             </p>
                         </div>
 
+                        <div>
+                            <label
+                                for="location-template"
+                                class="text-sm font-medium"
+                            >
+                                "Location template"
+                                <span class="font-normal text-muted-foreground">
+                                    " (optional)"
+                                </span>
+                            </label>
+                            input(
+                                attrs: attributes! {
+                                    id="location-template"
+                                    type="text"
+                                    class="mt-1.5"
+                                    :value=$(location_template.get())
+                                    @input=$(|e: Event| location_template.set(e.target.value))
+                                }
+                            )
+                            <p class="mt-1.5 text-xs text-muted-foreground">
+                                "Sets the event location. Uses the same "
+                                <code class="font-mono">"{Column Name}"</code>
+                                " syntax, including "
+                                <code class="font-mono">"{Page URL}"</code>
+                                "."
+                            </p>
+                        </div>
+
+                        <div>
+                            <label for="url-template" class="text-sm font-medium">
+                                "URL template"
+                                <span class="font-normal text-muted-foreground">
+                                    " (optional)"
+                                </span>
+                            </label>
+                            input(
+                                attrs: attributes! {
+                                    id="url-template"
+                                    type="text"
+                                    class="mt-1.5"
+                                    :value=$(url_template.get())
+                                    @input=$(|e: Event| url_template.set(e.target.value))
+                                }
+                            )
+                            <p class="mt-1.5 text-xs text-muted-foreground">
+                                "Sets the event URL. Uses the same "
+                                <code class="font-mono">"{Column Name}"</code>
+                                " syntax, including "
+                                <code class="font-mono">"{Page URL}"</code>
+                                "."
+                            </p>
+                        </div>
+
                         <p
                             :hidden=$(error.get().is_empty())
                             class="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -278,6 +351,8 @@ async fn calendar_form(
                                             date_col.get(),
                                             title_template.get(),
                                             description_template.get(),
+                                            location_template.get(),
+                                            url_template.get(),
                                         ).await;
                                         if message.is_empty() {
                                             raw!("location.assign('/')")
@@ -306,6 +381,8 @@ async fn save_calendar(
     date_col: String,
     title_template: String,
     description_template: String,
+    location_template: String,
+    url_template: String,
 ) -> Result<String> {
     let user = require_auth(cx).await?;
     let api = require_api(cx).await?;
@@ -345,19 +422,28 @@ async fn save_calendar(
         Err(error) => return Ok(format!("Title template: {error}.")),
     };
 
-    let description_template = if description_template.trim().is_empty() {
-        Template::new()
-    } else {
-        match template::parse(&description_template, columns) {
+    let description_template =
+        match optional_template(&description_template, "Description", &columns) {
             Ok(template) => template,
-            Err(error) => return Ok(format!("Description template: {error}.")),
-        }
+            Err(message) => return Ok(message),
+        };
+
+    let location_template = match optional_template(&location_template, "Location", &columns) {
+        Ok(template) => template,
+        Err(message) => return Ok(message),
+    };
+
+    let url_template = match optional_template(&url_template, "URL", &columns) {
+        Ok(template) => template,
+        Err(message) => return Ok(message),
     };
 
     let config = CalendarConfig {
         date_col,
         title_template,
         description_template,
+        location_template,
+        url_template,
     };
 
     let title = datasource_title(&datasource);
@@ -448,4 +534,38 @@ async fn calendar_feed(cx: &Cx) -> Result<Response> {
         ics,
     )
         .into_response(cx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event_collector::template::Segment;
+
+    #[test]
+    fn parses_an_optional_template() {
+        let mut columns = HashMap::new();
+        columns.insert("Name".to_owned(), ());
+
+        assert_eq!(
+            optional_template("{Name}", "Location", &columns).unwrap(),
+            vec![Segment::Field("Name".to_owned())]
+        );
+    }
+
+    #[test]
+    fn treats_a_blank_optional_template_as_empty() {
+        assert!(
+            optional_template("  ", "URL", &HashMap::new())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_columns_in_an_optional_template() {
+        assert_eq!(
+            optional_template("{Nope}", "URL", &HashMap::new()).unwrap_err(),
+            "URL template: unknown column `Nope` at position 0."
+        );
+    }
 }
