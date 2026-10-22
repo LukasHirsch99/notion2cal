@@ -84,6 +84,20 @@ fn create_event_from_page(page: &Page, config: &CalendarConfig) -> Option<Event>
                     event.ends(end.with_timezone(&Utc));
                 }
             }
+            // Named time zones (e.g. "America/Los_Angeles") arrive without an
+            // offset and are not mapped to UTC here; treat them as UTC.
+            (NotionTimestamp::LocalDateTime(start), end) => {
+                event.starts(start.and_utc());
+                match end {
+                    Some(NotionTimestamp::LocalDateTime(end)) => {
+                        event.ends(end.and_utc());
+                    }
+                    Some(NotionTimestamp::DateTime(end)) => {
+                        event.ends(end.with_timezone(&Utc));
+                    }
+                    _ => {}
+                }
+            }
             (NotionTimestamp::Date(start), Some(NotionTimestamp::Date(e))) => {
                 event.starts(*start);
                 event.ends(*e + Duration::days(1));

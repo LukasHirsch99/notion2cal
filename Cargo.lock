@@ -1471,6 +1471,7 @@ dependencies = [
  "icalendar",
  "reqwest",
  "serde",
+ "serde_json",
  "sqlx",
  "tokio",
  "topcoat",
