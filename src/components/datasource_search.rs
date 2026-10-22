@@ -1,14 +1,13 @@
 use crate::{
     components::input::input,
     dto::DatasourceDto,
-    middleware::{current_api, require_auth},
+    middleware::{require_api, require_auth},
     notion_api::types::page::{PageDesc, PagePropertyTpye},
 };
 use topcoat::{
     Result,
     context::Cx,
     icon::{IconData, icon},
-    router::error::RouterErrorExt,
     runtime::{Event, shard, signal},
     view::{View, attributes, component, svg::ViewBox, view},
 };
@@ -68,24 +67,22 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
 }
 
 fn source_eligible(source: &PageDesc) -> bool {
-    matches!(
-        source
-            .properties
-            .iter()
-            .find(|prop| prop.1.field_type == PagePropertyTpye::Date),
-        Some(_)
-    )
+    source
+        .properties
+        .values()
+        .any(|prop| prop.field_type == PagePropertyTpye::Date)
 }
 
 #[shard]
 async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
-    let api = current_api(cx).await.ok_or_unauthorized()?;
+    let api = require_api(cx).await?;
     let sources = api
         .search_datasources(&query)
         .await
         .map_err(topcoat::Error::msg)?;
 
     struct SourceRow {
+        id: String,
         emoji: Option<String>,
         title: String,
         eligible: bool,
@@ -99,6 +96,7 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
             let dto = DatasourceDto::from_page(source);
             let eligible = source_eligible(source);
             SourceRow {
+                id: dto.id,
                 emoji: dto.icon,
                 title: dto.title,
                 eligible,
@@ -163,20 +161,37 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
                     class="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-xs"
                 >
                     for row in rows {
-                        <li class=(row.row_class)>
-                            <span class=(row.tile_class) aria-hidden="true">
-                                match row.emoji {
-                                    Some(emoji) => (emoji),
-                                    None => icon(data: DATASOURCE, size: 16),
-                                }
-                            </span>
-                            <span class="min-w-0 flex-1 truncate text-sm font-medium">
-                                (row.title)
-                            </span>
-                            if !row.eligible {
-                                <span class="shrink-0 text-xs">
-                                    "Needs a date property"
-                                </span>
+                        <li>
+                            if row.eligible {
+                                <a
+                                    href=(format!("/calendar/{}", row.id))
+                                    class=(row.row_class)
+                                >
+                                    <span class=(row.tile_class) aria-hidden="true">
+                                        match row.emoji {
+                                            Some(emoji) => (emoji),
+                                            None => icon(data: DATASOURCE, size: 16),
+                                        }
+                                    </span>
+                                    <span class="min-w-0 flex-1 truncate text-sm font-medium">
+                                        (row.title)
+                                    </span>
+                                </a>
+                            } else {
+                                <div class=(row.row_class)>
+                                    <span class=(row.tile_class) aria-hidden="true">
+                                        match row.emoji {
+                                            Some(emoji) => (emoji),
+                                            None => icon(data: DATASOURCE, size: 16),
+                                        }
+                                    </span>
+                                    <span class="min-w-0 flex-1 truncate text-sm font-medium">
+                                        (row.title)
+                                    </span>
+                                    <span class="shrink-0 text-xs">
+                                        "Needs a date property"
+                                    </span>
+                                </div>
                             }
                         </li>
                     }

@@ -1,11 +1,16 @@
+use crate::{
+    db::calendar::CalendarConfig,
+    notion_api::{
+        NotionApi,
+        query_datasource::QueryDataSourceRequest,
+        types::page::{NotionTimestamp, Page, PagePropertyValue},
+    },
+};
 use chrono::{Duration, Utc};
 use icalendar::{Calendar, Component, Event, EventLike};
 use topcoat::router::query_params;
-
-use crate::notion_api::{
-    NotionApi,
-    types::page::{NotionTimestamp, Page, PagePropertyValue},
-};
+use uuid::Uuid;
+pub mod template;
 
 #[query_params(error = bad_request)]
 pub struct EventQuery {
@@ -15,53 +20,62 @@ pub struct EventQuery {
     pub description_col: Option<String>,
 }
 
-pub async fn create_calendar(api: &NotionApi, query: &EventQuery) -> anyhow::Result<Calendar> {
-    let mut res = api
-        .query_datasource(
-            &query.datasource_id,
-            None,
-            &query.date_col,
-            &query.title_col,
-            query.description_col.as_ref().unwrap(),
-        )
-        .await?;
-
+pub async fn create_calendar(
+    api: &NotionApi,
+    datasource_id: Uuid,
+    config: &CalendarConfig,
+) -> anyhow::Result<Calendar> {
     let mut calendar = Calendar::new();
+    calendar.name("Notion2Cal");
 
-    while res.has_more {
+    let mut cursor: Option<String> = None;
+    loop {
+        let res = api
+            .query_datasource(
+                &datasource_id,
+                &[],
+                QueryDataSourceRequest {
+                    page_size: Some(100),
+                    start_cursor: cursor,
+                    ..Default::default()
+                },
+            )
+            .await?;
+
         for page in res.results {
-            if let Some(event) = create_event_from_page(&page, query) {
+            if let Some(event) = create_event_from_page(&page, config) {
                 calendar.push(event);
             }
         }
-        res = api
-            .query_datasource(
-                &query.datasource_id,
-                res.next_cursor,
-                &query.date_col,
-                &query.title_col,
-                query.description_col.as_ref().unwrap(),
-            )
-            .await?;
+
+        if !res.has_more {
+            break;
+        }
+        cursor = res.next_cursor;
+        if cursor.is_none() {
+            break;
+        }
     }
+
     Ok(calendar.done())
 }
 
-fn create_event_from_page(page: &Page, query: &EventQuery) -> Option<Event> {
-    let title = page.properties.get(&query.title_col)?.value.to_string();
+fn create_event_from_page(page: &Page, config: &CalendarConfig) -> Option<Event> {
+    let title = template::render(&config.title_template, &page.properties).ok()?;
 
     let mut event = Event::new();
     event.summary(&title);
     event.uid(&page.id);
 
-    if let Some(desc_id) = &query.description_col
-        && let Some(desc) = page.properties.get(desc_id)
+    if !config.description_template.is_empty()
+        && let Ok(description) = template::render(&config.description_template, &page.properties)
+        && !description.is_empty()
     {
-        event.description(&desc.value.to_string());
+        event.description(&description);
     }
 
     if let Some(PagePropertyValue::Date { date: Some(date) }) =
-        page.properties.get(&query.date_col).map(|p| &p.value)
+        page.properties.get(&config.date_col).map(|p| &p.value)
     {
         match (&date.start, &date.end) {
             (NotionTimestamp::DateTime(start), end) => {
@@ -75,7 +89,8 @@ fn create_event_from_page(page: &Page, query: &EventQuery) -> Option<Event> {
                 event.ends(*e + Duration::days(1));
             }
             (NotionTimestamp::Date(s), _) => {
-                event.all_day(*s);
+                event.starts(*s);
+                event.ends(*s + Duration::days(1));
             }
         };
     } else {

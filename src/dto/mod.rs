@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::notion_api::types::page::{Icon, PageDesc};
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DatasourceDto {
     pub id: String,

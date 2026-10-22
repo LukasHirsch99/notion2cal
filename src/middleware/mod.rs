@@ -75,8 +75,6 @@ pub async fn create_user(
         },
     };
 
-    println!("User: {:?}", create_user);
-
     let db: &PgPool = app_context(cx);
 
     if let Some(_) = sqlx::query!(
@@ -126,10 +124,6 @@ pub async fn create_user(
         .await?;
     }
 
-    println!(
-        "Creating session for {}, hash: {:?}",
-        create_user.id, token_hash
-    );
     sqlx::query!(
         r#"
         insert into sessions values ($1, $2, $3)
@@ -140,8 +134,6 @@ pub async fn create_user(
     )
     .execute(db)
     .await?;
-    println!("Created session");
-
     Ok(())
 }
 
@@ -152,7 +144,6 @@ pub async fn current_user(cx: &Cx) -> Option<&AuthenticatedUser> {
 
 #[memoize(as_ref)]
 async fn fetch_user_by_hash(cx: &Cx, token_hash: &TokenHash) -> Option<AuthenticatedUser> {
-    println!("Fetching user by hash: {:?}", token_hash);
     let db: &PgPool = app_context(cx);
 
     let user = sqlx::query!(
@@ -168,7 +159,6 @@ async fn fetch_user_by_hash(cx: &Cx, token_hash: &TokenHash) -> Option<Authentic
     .inspect_err(|e| println!("Error: {:?}", e))
     .ok()
     .flatten()?;
-    println!("Found user: {}", &user.id);
 
     Some(AuthenticatedUser {
         id: user.id,
@@ -183,12 +173,11 @@ async fn fetch_user_by_hash(cx: &Cx, token_hash: &TokenHash) -> Option<Authentic
     })
 }
 
-#[memoize(as_ref)]
-pub async fn current_api(cx: &Cx) -> Option<NotionApi> {
-    let user = current_user(cx).await?;
+pub async fn require_api(cx: &Cx) -> Result<NotionApi, UnauthorizedError> {
+    let user = require_auth(cx).await?;
     let config: &AppConfig = app_context(cx);
 
-    Some(NotionApi::new(&user.access_token, &config.api_version))
+    Ok(NotionApi::new(&user.access_token, &config.api_version))
 }
 
 pub async fn require_auth(cx: &Cx) -> Result<&AuthenticatedUser, UnauthorizedError> {

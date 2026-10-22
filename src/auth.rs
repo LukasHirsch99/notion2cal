@@ -22,12 +22,11 @@ pub struct Query {
 #[route(GET)]
 async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
     match current_user(cx).await {
-        Some(_) => Ok(see_other("/").into()),
+        Some(_) => Ok(see_other("/")),
         _ => {
             let query = query_params::<Query>(cx)?;
             let app_config: &AppConfig = app_context(cx);
 
-            println!("getting token");
             let token_res = NotionApi::get_token(
                 &query.code,
                 &app_config.redirect_uri,
@@ -35,9 +34,7 @@ async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
                 &app_config.oauth_client_secret,
                 &app_config.api_version,
             )
-            .await;
-            println!("token: {:?}", token_res);
-            let token_res = token_res.unwrap();
+            .await?;
 
             match token_res {
                 TokenRes::Success {
@@ -62,7 +59,7 @@ async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
                     )
                     .await?;
 
-                    Ok(see_other("/").into())
+                    Ok(see_other("/"))
                 }
                 TokenRes::Error {
                     error,

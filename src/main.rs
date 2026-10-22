@@ -20,6 +20,7 @@ mod auth;
 mod calendar;
 mod components;
 mod datasources;
+mod db;
 mod dto;
 mod event_collector;
 mod middleware;
@@ -97,8 +98,7 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
 
 #[page]
 async fn home(cx: &Cx) -> Result<impl View> {
-    let logged_in = matches!(current_user(cx).await, Some(_));
-    println!("logged_in: {}", logged_in);
+    let logged_in = current_user(cx).await.is_some();
 
     Ok(view! {
         if logged_in {

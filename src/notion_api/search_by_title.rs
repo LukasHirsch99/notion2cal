@@ -1,7 +1,4 @@
-use crate::notion_api::{
-    BASE_URL, NotionApi,
-    common::RequestStatus, types::page::PageDesc,
-};
+use crate::notion_api::{BASE_URL, NotionApi, common::RequestStatus, types::page::PageDesc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]

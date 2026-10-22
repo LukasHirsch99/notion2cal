@@ -2,10 +2,10 @@ use reqwest::StatusCode;
 use topcoat::{
     Result,
     context::Cx,
-    router::{content::Json, error::RouterErrorExt, query_params, response::IntoResponse, route},
+    router::{content::Json, query_params, response::IntoResponse, route},
 };
 
-use crate::{dto::DatasourceDto, middleware::current_api, notion_api::NotionApi};
+use crate::{dto::DatasourceDto, middleware::require_api};
 
 #[query_params(error = bad_request)]
 struct GetsQuery {
@@ -14,7 +14,7 @@ struct GetsQuery {
 
 #[route(GET)]
 async fn get(cx: &Cx) -> Result<impl IntoResponse> {
-    let api: &NotionApi = current_api(cx).await.ok_or_unauthorized()?;
+    let api = require_api(cx).await?;
 
     let query = query_params::<GetsQuery>(cx)?;
 

@@ -75,8 +75,7 @@ impl NotionApi {
         client_secret: &String,
         api_version: &String,
     ) -> Result<TokenRes> {
-        let client = reqwest::Client::new();
-        let r = client
+        Ok(reqwest::Client::new()
             .post(format!("{}oauth/token", BASE_URL))
             .header(header::ACCEPT, "application/json")
             .header(header::CONTENT_TYPE, "application/json")
@@ -89,11 +88,8 @@ impl NotionApi {
                 redirect_uri: redirect_uri.to_string(),
             })
             .send()
-            .await?;
-
-        Ok(r.json().await?)
-
-        // println!("{:?}", r.text().await?);
-        // Err(topcoat::Error::msg("test"))
+            .await?
+            .json()
+            .await?)
     }
 }

@@ -1,0 +1,96 @@
+use crate::notion_api::types::page::PageProperty;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt::Display};
+
+pub type Template = Vec<Segment>;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Segment {
+    Text(String),
+    Field(String),
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    UnclosedBrace(usize),
+    StrayClosingBrace(usize),
+    InvalidField(usize, String),
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnclosedBrace(position) => {
+                write!(f, "unclosed `{{` at position {position}")
+            }
+            Self::StrayClosingBrace(position) => {
+                write!(f, "unexpected `}}` at position {position}")
+            }
+            Self::InvalidField(position, field) => {
+                write!(f, "unknown column `{field}` at position {position}")
+            }
+        }
+    }
+}
+
+pub fn parse<T>(src: &str, props: HashMap<String, T>) -> Result<Template, ParseError> {
+    let mut segments = Vec::new();
+    let mut text = String::new();
+    let mut chars = src.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '{' if matches!(chars.peek(), Some((_, '{'))) => {
+                chars.next();
+                text.push('{');
+            }
+            '{' => {
+                let mut name = String::new();
+                let mut closed = false;
+                for (_, c) in chars.by_ref() {
+                    if c == '}' {
+                        closed = true;
+                        break;
+                    }
+                    name.push(c);
+                }
+                if !closed {
+                    return Err(ParseError::UnclosedBrace(i));
+                }
+                name = name.trim().to_owned();
+                if props.get(&name).is_none() {
+                    return Err(ParseError::InvalidField(i, name));
+                }
+                if !text.is_empty() {
+                    segments.push(Segment::Text(std::mem::take(&mut text)));
+                }
+                segments.push(Segment::Field(name));
+            }
+            '}' if matches!(chars.peek(), Some((_, '}'))) => {
+                chars.next();
+                text.push('}');
+            }
+            '}' => return Err(ParseError::StrayClosingBrace(i)),
+            _ => text.push(c),
+        }
+    }
+
+    Ok(segments)
+}
+
+pub fn render(
+    segments: &Template,
+    props: &HashMap<String, PageProperty>,
+) -> Result<String, String> {
+    let mut out = String::new();
+    for seg in segments {
+        match seg {
+            Segment::Text(text) => out.push_str(text),
+            Segment::Field(field) => match props.get(field) {
+                Some(prop) => out.push_str(&prop.value.to_string()),
+                None => return Err(format!("unknown field: {}", field)),
+            },
+        }
+    }
+    Ok(out)
+}
