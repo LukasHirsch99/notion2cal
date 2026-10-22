@@ -6,30 +6,56 @@ use crate::{
         button::{ButtonSize, ButtonVariant, button, button_variants},
         input::input,
     },
-    db::calendar::{CalendarConfig, find_feed},
+    db::calendar::{CalendarConfig, delete_for_user, find_feed, find_for_user, update_calendar},
     event_collector::{
         self,
         template::{self, Template},
     },
     middleware::{require_api, require_auth},
-    notion_api::{NotionApi, types::page::PagePropertyTpye},
+    notion_api::{NotionApi, query_datasource::DataSource, types::page::PagePropertyTpye},
 };
 use sqlx::{PgPool, types::Json};
 use topcoat::{
     Result,
     context::{Cx, app_context},
     router::{
-        StatusCode, page, path_param,
+        StatusCode,
+        error::RouterErrorExt,
+        page, path_param,
         response::{IntoResponse, Response},
         route,
     },
     runtime::{Event, procedure, signal},
-    view::{View, attributes, view},
+    view::{View, attributes, component, view},
 };
 use uuid::Uuid;
 
 path_param!(pub datasource_id: Uuid, error = bad_request);
 path_param!(pub calendar_id: Uuid, error = not_found);
+
+fn datasource_title(datasource: &DataSource) -> String {
+    datasource
+        .title
+        .iter()
+        .fold(String::new(), |acc, part| acc + part.plain_text.as_str())
+}
+
+fn date_columns(datasource: &DataSource) -> Vec<String> {
+    let mut columns: Vec<String> = datasource
+        .properties
+        .iter()
+        .filter(|(_, property)| property.field_type == PagePropertyTpye::Date)
+        .map(|(name, _)| name.clone())
+        .collect();
+    columns.sort();
+    columns
+}
+
+fn columns_hint(datasource: &DataSource) -> String {
+    let mut columns: Vec<String> = datasource.properties.keys().cloned().collect();
+    columns.sort();
+    columns.join(", ")
+}
 
 /// Configure how a Notion datasource becomes a calendar.
 #[page("/calendar/{datasource_id}")]
@@ -41,39 +67,97 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
         .await
         .map_err(topcoat::Error::msg)?;
 
-    let title = datasource
-        .title
-        .iter()
-        .fold(String::new(), |acc, part| acc + part.plain_text.as_str());
-
-    let title_column = datasource
+    let title = datasource_title(&datasource);
+    let date_columns = date_columns(&datasource);
+    let default_date_col = date_columns.first().cloned().unwrap_or_default();
+    let default_title = datasource
         .properties
         .iter()
         .find(|(_, property)| property.field_type == PagePropertyTpye::Title)
-        .map(|(name, _)| name.clone());
-
-    let mut columns: Vec<String> = datasource.properties.keys().cloned().collect();
-    columns.sort();
-
-    let mut date_columns: Vec<String> = datasource
-        .properties
-        .iter()
-        .filter(|(_, property)| property.field_type == PagePropertyTpye::Date)
-        .map(|(name, _)| name.clone())
-        .collect();
-    date_columns.sort();
-
-    let default_date_col = date_columns.first().cloned().unwrap_or_default();
-    let default_title = title_column
-        .map(|name| format!("{{{name}}}"))
+        .map(|(name, _)| format!("{{{name}}}"))
         .unwrap_or_default();
-    let columns_hint = columns.join(", ");
 
-    let datasource_id = datasource_id.to_string();
-    let date_col = signal(cx, || default_date_col);
-    let title_template = signal(cx, || default_title);
-    let description_template = signal(cx, String::new);
+    Ok(view! {
+        calendar_form(
+            datasource_id: datasource_id.to_string(),
+            calendar_id: None,
+            title: title,
+            date_columns: date_columns,
+            columns_hint: columns_hint(&datasource),
+            date_col: default_date_col,
+            title_template: default_title,
+            description_template: String::new()
+        )
+    })
+}
+
+/// Edit a saved calendar's configuration.
+#[page("/calendars/{calendar_id}/edit")]
+async fn edit_calendar(cx: &Cx) -> Result<impl View> {
+    let user = require_auth(cx).await?;
+    let calendar_id = *path_param::<CalendarId>(cx)?;
+
+    let db: &PgPool = app_context(cx);
+    let calendar = find_for_user(db, calendar_id, user.id)
+        .await?
+        .ok_or_not_found()?;
+
+    let datasource_id = calendar.datasource_id;
+    let api = require_api(cx).await?;
+    let datasource = api
+        .retrieve_datasource(&datasource_id)
+        .await
+        .map_err(topcoat::Error::msg)?;
+
+    let config = calendar.config.0;
+    let title = if calendar.title.is_empty() {
+        datasource_title(&datasource)
+    } else {
+        calendar.title.clone()
+    };
+
+    Ok(view! {
+        calendar_form(
+            datasource_id: datasource_id.to_string(),
+            calendar_id: Some(calendar_id.to_string()),
+            title: title,
+            date_columns: date_columns(&datasource),
+            columns_hint: columns_hint(&datasource),
+            date_col: config.date_col.clone(),
+            title_template: template::format_source(&config.title_template),
+            description_template: template::format_source(&config.description_template)
+        )
+    })
+}
+
+#[component]
+async fn calendar_form(
+    cx: &Cx,
+    datasource_id: String,
+    calendar_id: Option<String>,
+    title: String,
+    date_columns: Vec<String>,
+    columns_hint: String,
+    date_col: String,
+    title_template: String,
+    description_template: String,
+) -> Result<impl View> {
+    let date_col = signal(cx, || date_col);
+    let title_template = signal(cx, || title_template);
+    let description_template = signal(cx, || description_template);
     let error = signal(cx, String::new);
+
+    let is_edit = calendar_id.is_some();
+    let heading = if is_edit {
+        "Edit calendar"
+    } else {
+        "Configure calendar"
+    };
+    let save_label = if is_edit {
+        "Save changes"
+    } else {
+        "Save calendar"
+    };
 
     Ok(view! {
         <main class="mx-auto w-full max-w-2xl pt-10 pb-16 sm:pt-20">
@@ -81,12 +165,12 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
                 href="/"
                 class="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-                "← Datasources"
+                "← Calendars"
             </a>
 
             <header class="mt-6">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    "Configure calendar"
+                    (heading)
                 </h1>
                 <p class="mt-2 text-sm text-muted-foreground sm:text-base">(title)</p>
             </header>
@@ -186,6 +270,7 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
                                     @click=$(async |_e: Event| {
                                         let message = save_calendar(
                                             datasource_id.to_owned(),
+                                            calendar_id.clone(),
                                             date_col.get(),
                                             title_template.get(),
                                             description_template.get(),
@@ -197,7 +282,7 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
                                         }
                                     })
                                 },
-                                "Save calendar"
+                                (save_label)
                             )
                         </div>
                     </div>
@@ -213,6 +298,7 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
 async fn save_calendar(
     cx: &Cx,
     datasource_id: String,
+    calendar_id: Option<String>,
     date_col: String,
     title_template: String,
     description_template: String,
@@ -269,21 +355,62 @@ async fn save_calendar(
         description_template,
     };
 
+    let title = datasource_title(&datasource);
+    let title = if title.is_empty() {
+        "Untitled calendar".to_owned()
+    } else {
+        title
+    };
+
     let db: &PgPool = app_context(cx);
-    let insert =
-        sqlx::query("insert into calendars (user_id, datasource_id, config) values ($1, $2, $3)")
-            .bind(user.id)
-            .bind(datasource_id)
-            .bind(Json(config))
-            .execute(db)
-            .await;
 
-    if let Err(error) = insert {
-        tracing::error!(%error, "failed to save calendar");
-        return Ok("Could not save the calendar. Try again.".to_owned());
+    let result = match calendar_id {
+        Some(calendar_id) => {
+            let Ok(calendar_id) = Uuid::parse_str(&calendar_id) else {
+                return Ok("Invalid calendar.".to_owned());
+            };
+            update_calendar(db, calendar_id, user.id, &title, &config).await
+        }
+        None => sqlx::query(
+            "insert into calendars (user_id, datasource_id, title, config) values ($1, $2, $3, $4)",
+        )
+        .bind(user.id)
+        .bind(datasource_id)
+        .bind(&title)
+        .bind(Json(config))
+        .execute(db)
+        .await
+        .map(|_| true),
+    };
+
+    match result {
+        Ok(true) => Ok(String::new()),
+        Ok(false) => Ok("Calendar not found.".to_owned()),
+        Err(error) => {
+            tracing::error!(%error, "failed to save calendar");
+            Ok("Could not save the calendar. Try again.".to_owned())
+        }
     }
+}
 
-    Ok(String::new())
+/// Delete one of the user's calendars. Returns an empty string on success, or a
+/// message for the user on failure.
+#[procedure]
+pub async fn delete_calendar(cx: &Cx, calendar_id: String) -> Result<String> {
+    let user = require_auth(cx).await?;
+    let Ok(calendar_id) = Uuid::parse_str(&calendar_id) else {
+        return Ok("Invalid calendar.".to_owned());
+    };
+
+    let db: &PgPool = app_context(cx);
+    match delete_for_user(db, calendar_id, user.id).await {
+        Ok(true) => Ok(String::new()),
+        Ok(false) => Ok("Calendar not found.".to_owned()),
+        Err(error) => {
+            tracing::error!(%error, "failed to delete calendar");
+            Ok("Could not delete the calendar. Try again.".to_owned())
+        }
+    }
 }
 
 /// Public iCal feed for a saved calendar.

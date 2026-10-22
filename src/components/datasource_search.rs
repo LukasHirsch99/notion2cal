@@ -1,5 +1,5 @@
 use crate::{
-    components::input::input,
+    components::{calendar_list::calendars, input::input},
     dto::DatasourceDto,
     middleware::{require_api, require_auth},
     notion_api::types::page::{PageDesc, PagePropertyTpye},
@@ -38,27 +38,34 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
                     "."
                 </h1>
                 <p class="mt-2 text-sm text-muted-foreground sm:text-base">
-                    "Choose a Notion datasource to turn into a calendar."
+                    "Manage your calendars, or add a new one from a Notion datasource."
                 </p>
             </header>
 
-            <div class="relative mt-8">
-                icon(
-                    data: SEARCH,
-                    size: 16,
-                    attrs: attributes! {
-                        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-                    }
-                )
-                input(
-                    attrs: attributes! {
-                        type="search"
-                        @input=$(|e: Event| query.set(e.target.value))
-                        placeholder="Search datasources…"
-                        aria-label="Search datasources"
-                        class="block min-h-11 pl-10 shadow-xs"
-                    }
-                )
+            calendars()
+
+            <div class="mt-8">
+                <p class="mb-2 text-xs font-medium text-muted-foreground">
+                    "Add a calendar"
+                </p>
+                <div class="relative">
+                    icon(
+                        data: SEARCH,
+                        size: 16,
+                        attrs: attributes! {
+                            class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+                        }
+                    )
+                    input(
+                        attrs: attributes! {
+                            type="search"
+                            @input=$(|e: Event| query.set(e.target.value))
+                            placeholder="Search datasources…"
+                            aria-label="Search datasources"
+                            class="block min-h-11 pl-10 shadow-xs"
+                        }
+                    )
+                </div>
             </div>
 
             datasource_results(query: $(query.get()))

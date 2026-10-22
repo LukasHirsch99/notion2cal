@@ -78,6 +78,46 @@ pub fn parse<T>(src: &str, props: HashMap<String, T>) -> Result<Template, ParseE
     Ok(segments)
 }
 
+/// Formats a template back into the source syntax accepted by [`parse`], so it
+/// can be shown in an edit form.
+pub fn format_source(template: &Template) -> String {
+    let mut out = String::new();
+    for segment in template {
+        match segment {
+            Segment::Text(text) => {
+                for c in text.chars() {
+                    if c == '{' || c == '}' {
+                        out.push(c);
+                    }
+                    out.push(c);
+                }
+            }
+            Segment::Field(name) => {
+                out.push('{');
+                out.push_str(name);
+                out.push('}');
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_a_template_back_into_source_text() {
+        let template = vec![
+            Segment::Text("Meet {".to_owned()),
+            Segment::Field("Name".to_owned()),
+            Segment::Text("} at {x}".to_owned()),
+        ];
+
+        assert_eq!(format_source(&template), "Meet {{{Name}}} at {{x}}");
+    }
+}
+
 pub fn render(
     segments: &Template,
     props: &HashMap<String, PageProperty>,

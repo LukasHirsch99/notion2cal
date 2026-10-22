@@ -58,11 +58,14 @@ async fn main() -> Result<()> {
 
     sqlx::migrate!().run(&db).await?;
 
+    let base_url = app_base_url(&redirect_uri);
+
     let router = module_router!()
         .discover()
         .cookies()
         .sessions(SessionConfig::default())
         .assets(AssetBundle::load()?)
+        .base_url(base_url)
         .runtime()
         // .app_context(api)
         .app_context(db)
@@ -107,4 +110,32 @@ async fn home(cx: &Cx) -> Result<impl View> {
             welcome()
         }
     })
+}
+
+/// The public origin of the app. The OAuth redirect URI points at `/auth` on
+/// that origin, so deriving it avoids a second deployment setting.
+fn app_base_url(redirect_uri: &str) -> String {
+    let trimmed = redirect_uri.trim_end_matches('/');
+    trimmed.strip_suffix("/auth").unwrap_or(trimmed).to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derives_the_app_base_url_from_the_redirect_uri() {
+        assert_eq!(
+            app_base_url("https://n2c.hirsch.engineer/auth"),
+            "https://n2c.hirsch.engineer"
+        );
+        assert_eq!(
+            app_base_url("http://localhost:3000/auth/"),
+            "http://localhost:3000"
+        );
+        assert_eq!(
+            app_base_url("https://example.com/custom/callback"),
+            "https://example.com/custom/callback"
+        );
+    }
 }
