@@ -6,7 +6,9 @@ use crate::{
         button::{ButtonSize, ButtonVariant, button, button_variants},
         input::input,
     },
-    db::calendar::{CalendarConfig, delete_for_user, find_feed, find_for_user, update_calendar},
+    db::calendar::{
+        CalendarConfig, create_calendar, delete_for_user, find_feed, find_for_user, update_calendar,
+    },
     event_collector::{
         self,
         template::{self, PAGE_URL_FIELD, Template},
@@ -14,7 +16,7 @@ use crate::{
     middleware::{require_api, require_auth},
     notion_api::{NotionApi, query_datasource::DataSource, types::page::PagePropertyTpye},
 };
-use sqlx::{PgPool, types::Json};
+use sqlx::PgPool;
 use topcoat::{
     Result,
     context::{Cx, app_context},
@@ -462,16 +464,7 @@ async fn save_calendar(
             };
             update_calendar(db, calendar_id, user.id, &title, &config).await
         }
-        None => sqlx::query(
-            "insert into calendars (user_id, datasource_id, title, config) values ($1, $2, $3, $4)",
-        )
-        .bind(user.id)
-        .bind(datasource_id)
-        .bind(&title)
-        .bind(Json(config))
-        .execute(db)
-        .await
-        .map(|_| true),
+        None => create_calendar(db, user.id, datasource_id, &title, &config).await,
     };
 
     match result {

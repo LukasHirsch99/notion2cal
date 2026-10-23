@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::event_collector::template::Template;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CalendarConfig {
     pub date_col: String,
     pub title_template: Template,
@@ -33,52 +33,78 @@ pub struct CalendarFeed {
 /// Loads the public feed data for a calendar, authenticating to Notion with the
 /// owning user's token.
 pub async fn find_feed(db: &PgPool, calendar_id: Uuid) -> sqlx::Result<Option<CalendarFeed>> {
-    sqlx::query_as(
+    sqlx::query_as!(
+        CalendarFeed,
         r#"
-        select c.datasource_id, c.config, u.access_token
+        select c.datasource_id, c.config as "config: Json<CalendarConfig>", u.access_token
         from calendars c
         join users u on u.id = c.user_id
         where c.id = $1
         "#,
+        calendar_id
     )
-    .bind(calendar_id)
     .fetch_optional(db)
     .await
 }
 
 /// Lists the calendars owned by a user, newest first.
 pub async fn list_for_user(db: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<Calendar>> {
-    sqlx::query_as(
+    sqlx::query_as!(
+        Calendar,
         r#"
-        select id, datasource_id, title, config
+        select id, datasource_id, title, config as "config: Json<CalendarConfig>"
         from calendars
         where user_id = $1
         order by created_at desc
         "#,
+        user_id
     )
-    .bind(user_id)
     .fetch_all(db)
     .await
 }
 
-/// Loads one of a user's calendars. Calendars owned by anyone else are treated
-/// as missing.
+/// Loads one of a user's calendars. Calendars owned by anyone else are treated as missing.
 pub async fn find_for_user(
     db: &PgPool,
     calendar_id: Uuid,
     user_id: Uuid,
 ) -> sqlx::Result<Option<Calendar>> {
-    sqlx::query_as(
+    sqlx::query_as!(
+        Calendar,
         r#"
-        select id, datasource_id, title, config
+        select id, datasource_id, title, config as "config: Json<CalendarConfig>"
         from calendars
         where id = $1 and user_id = $2
         "#,
+        calendar_id,
+        user_id
     )
-    .bind(calendar_id)
-    .bind(user_id)
     .fetch_optional(db)
     .await
+}
+
+/// Creates a new calendar for a user. Returns `false` when no calendar was created.
+pub async fn create_calendar(
+    db: &PgPool,
+    user_id: Uuid,
+    datasource_id: Uuid,
+    title: &str,
+    config: &CalendarConfig,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        r#"
+        insert into calendars (user_id, datasource_id, title, config)
+        values ($1, $2, $3, $4)
+        "#,
+        user_id,
+        datasource_id,
+        title,
+        Json(config) as _
+    )
+    .execute(db)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
 }
 
 /// Replaces a user's calendar configuration. Returns `false` when no calendar
@@ -90,17 +116,17 @@ pub async fn update_calendar(
     title: &str,
     config: &CalendarConfig,
 ) -> sqlx::Result<bool> {
-    let result = sqlx::query(
+    let result = sqlx::query!(
         r#"
         update calendars
         set title = $3, config = $4
         where id = $1 and user_id = $2
         "#,
+        calendar_id,
+        user_id,
+        title,
+        Json(config) as _
     )
-    .bind(calendar_id)
-    .bind(user_id)
-    .bind(title)
-    .bind(Json(config))
     .execute(db)
     .await?;
 
@@ -110,11 +136,13 @@ pub async fn update_calendar(
 /// Deletes a user's calendar. Returns `false` when no calendar with that id
 /// belongs to the user.
 pub async fn delete_for_user(db: &PgPool, calendar_id: Uuid, user_id: Uuid) -> sqlx::Result<bool> {
-    let result = sqlx::query("delete from calendars where id = $1 and user_id = $2")
-        .bind(calendar_id)
-        .bind(user_id)
-        .execute(db)
-        .await?;
+    let result = sqlx::query!(
+        "delete from calendars where id = $1 and user_id = $2",
+        calendar_id,
+        user_id
+    )
+    .execute(db)
+    .await?;
 
     Ok(result.rows_affected() > 0)
 }

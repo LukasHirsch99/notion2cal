@@ -84,7 +84,7 @@ impl ButtonSize {
 /// Classes shared by button variants and sizes. A border reserves the same space in
 /// every variant.
 const BASE: StaticClass = class!(
-    "inline-flex shrink-0 items-center justify-center border \
+    "inline-flex shrink-0 items-center justify-center border hover:cursor-pointer \
      text-sm font-medium whitespace-nowrap transition-colors outline-none select-none \
      focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 \
      focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",

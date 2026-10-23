@@ -17,6 +17,7 @@ COPY .sqlx ./.sqlx
 ENV SQLX_OFFLINE=true
 RUN cargo build --release
 
+COPY assets ./assets
 RUN topcoat asset bundle --release --bin notion2cal --out /app/bundle
 
 FROM debian:trixie-slim

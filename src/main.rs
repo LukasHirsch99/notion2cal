@@ -5,21 +5,12 @@ use crate::{
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use topcoat::{
-    Result,
-    asset::{AssetBundle, RouterBuilderAssetExt},
-    context::Cx,
-    cookie::RouterBuilderCookieExt,
-    router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page},
-    runtime::RouterBuilderRuntimeExt,
-    session::{RouterBuilderSessionExt, SessionConfig},
-    tailwind,
-    view::{View, view},
+    Result, asset::{Asset, AssetBundle, RouterBuilderAssetExt, asset}, context::Cx, cookie::RouterBuilderCookieExt, router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page}, runtime::RouterBuilderRuntimeExt, session::{RouterBuilderSessionExt, SessionConfig}, tailwind, view::{View, view},
 };
 
 mod auth;
 mod calendar;
 mod components;
-mod datasources;
 mod db;
 mod dto;
 mod event_collector;
@@ -34,8 +25,14 @@ struct AppConfig {
     api_version: String,
 }
 
+const FAVICON: Asset = asset!("assets/favicon.svg");
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("install rustls ring provider");
+
     // initialize tracing
     tracing_subscriber::fmt::init();
 
@@ -92,6 +89,7 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
                 topcoat::dev::script()
                 topcoat::runtime::script()
                 <link rel="stylesheet" href=(tailwind::stylesheet!())>
+                <link rel="icon" type="image/svg+xml" href=(FAVICON)>
             </head>
             <body class="p-5">(slot)</body>
         </html>
