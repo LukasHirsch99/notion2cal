@@ -575,9 +575,7 @@ pub struct QueryDataSourceRequest {
 impl NotionApi {
     pub async fn retrieve_datasource(&self, datasource_id: &Uuid) -> anyhow::Result<DataSource> {
         Ok(self
-            .client
-            .get(format!("{}data_sources/{}", BASE_URL, datasource_id))
-            .send()
+            .get(&format!("data_sources/{}", datasource_id))
             .await?
             .error_for_status()?
             .json::<DataSource>()
@@ -600,10 +598,7 @@ impl NotionApi {
         )?;
 
         Ok(self
-            .client
-            .post(url)
-            .json(&query)
-            .send()
+            .post(url.as_ref(), &query)
             .await?
             .error_for_status()?
             .json::<DatasourceQueryRes>()

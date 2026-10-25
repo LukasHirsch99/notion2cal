@@ -5,7 +5,7 @@ use crate::{
         input::input,
     },
     db::calendar::list_for_user,
-    middleware::require_auth,
+    middleware::current_user,
 };
 use sqlx::PgPool;
 use topcoat::{
@@ -24,7 +24,7 @@ const CALENDAR: IconData = IconData::unescaped_unchecked(
 /// Lists the signed-in user's saved calendars with their public feed URLs.
 #[component]
 pub async fn calendars(cx: &Cx) -> Result<impl View> {
-    let user = require_auth(cx).await?;
+    let user = current_user(cx).await?;
     let db: &PgPool = app_context(cx);
     let calendars = list_for_user(db, user.id)
         .await

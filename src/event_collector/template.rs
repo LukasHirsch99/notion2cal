@@ -62,7 +62,7 @@ pub fn parse<T>(src: &str, props: HashMap<String, T>) -> Result<Template, ParseE
                     return Err(ParseError::UnclosedBrace(i));
                 }
                 name = name.trim().to_owned();
-                if name != PAGE_URL_FIELD && props.get(&name).is_none() {
+                if name != PAGE_URL_FIELD && !props.contains_key(&name) {
                     return Err(ParseError::InvalidField(i, name));
                 }
                 if !text.is_empty() {

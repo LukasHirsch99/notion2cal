@@ -1,30 +1,34 @@
 FROM rust:1.99 AS builder
-
 WORKDIR /app
 
-RUN cargo install --locked topcoat-cli
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    cargo install --locked topcoat-cli
 
-COPY Cargo.toml Cargo.lock ./
-COPY build.rs styles.css ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-RUN cargo build --release
-RUN rm -rf src target/release/deps/notion2cal* target/release/notion2cal*
-
+COPY Cargo.toml Cargo.lock build.rs styles.css ./
 COPY src ./src
 COPY migrations ./migrations
 COPY .sqlx ./.sqlx
-ENV SQLX_OFFLINE=true
-RUN cargo build --release
-
 COPY assets ./assets
-RUN topcoat asset bundle --release --bin notion2cal --out /app/bundle
+
+ENV SQLX_OFFLINE=true
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --locked \
+ && cp target/release/notion2cal /app/notion2cal \
+ && topcoat asset bundle --release --bin notion2cal --out /app/bundle
+
 
 FROM debian:trixie-slim
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/notion2cal /usr/local/bin/
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+
+
+COPY --from=builder /app/notion2cal /usr/local/bin/
 COPY --from=builder /app/bundle /usr/local/bin/assets
-ENV HOST=0.0.0.0
-ENV PORT=3001
+
+ENV HOST=0.0.0.0 PORT=3001
+USER 10001
+EXPOSE 3001
 CMD ["notion2cal"]

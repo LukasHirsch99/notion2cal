@@ -1,5 +1,11 @@
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+use crate::{
+    config::Keyring,
+    middleware::encryption::{decrypt_token, encrypt_token},
+};
 
 #[derive(sqlx::FromRow)]
 pub struct User {
@@ -7,15 +13,33 @@ pub struct User {
     pub username: Option<String>,
     pub avatar_url: Option<String>,
     pub email: Option<String>,
-    pub access_token: String,
-    pub refresh_token: String,
     pub bot_id: String,
     pub workspace_id: String,
     pub workspace_name: Option<String>,
     pub workspace_icon: Option<String>,
 }
 
-pub async fn upsert_user(db: &PgPool, user: &User) -> sqlx::Result<bool> {
+pub async fn upsert_user(
+    db: &PgPool,
+    keyring: &Keyring,
+    user: &User,
+    access_token: SecretString,
+    refresh_token: SecretString,
+) -> anyhow::Result<bool> {
+    let (version, key) = keyring.current();
+    let access_token_enc = encrypt_token(
+        version,
+        key,
+        access_token.expose_secret(),
+        &user.id.to_string(),
+    )?;
+    let refresh_token_enc = encrypt_token(
+        version,
+        key,
+        refresh_token.expose_secret(),
+        &user.id.to_string(),
+    )?;
+
     let result = sqlx::query!(
         r#"
         insert into users values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -29,8 +53,8 @@ pub async fn upsert_user(db: &PgPool, user: &User) -> sqlx::Result<bool> {
         user.username,
         user.avatar_url,
         user.email,
-        user.access_token,
-        user.refresh_token,
+        &access_token_enc,
+        &refresh_token_enc,
         user.bot_id,
         user.workspace_id,
         user.workspace_name,
@@ -42,11 +66,36 @@ pub async fn upsert_user(db: &PgPool, user: &User) -> sqlx::Result<bool> {
     Ok(result.rows_affected() > 0)
 }
 
+pub async fn get_token_by_hash(
+    db: &PgPool,
+    keyring: &Keyring,
+    token_hash: &Vec<u8>,
+) -> anyhow::Result<SecretString> {
+    let result = sqlx::query!(
+        r#"
+        select u.id, u.access_token from users u
+        join sessions s on s.user_id = u.id
+        where s.token_hash = $1
+        "#,
+        token_hash
+    )
+    .fetch_optional(db)
+    .await?
+    .ok_or(anyhow::anyhow!(
+        "Could not find user for token_hash {token_hash:?}"
+    ))?;
+
+    decrypt_token(keyring, &result.access_token, &result.id.to_string())
+}
+
 pub async fn get_user(db: &PgPool, id: Uuid) -> sqlx::Result<Option<User>> {
     sqlx::query_as!(
         User,
         r#"
-        select * from users where id = $1
+        select id, username, avatar_url, email, bot_id,
+        workspace_id, workspace_name, workspace_icon
+        from users
+        where id = $1
         "#,
         id
     )
@@ -58,7 +107,9 @@ pub async fn get_user_by_session(db: &PgPool, token_hash: &Vec<u8>) -> sqlx::Res
     sqlx::query_as!(
         User,
         r#"
-        select u.* from users u
+        select u.id, u.username, u.avatar_url, u.email, u.bot_id,
+        u.workspace_id, u.workspace_name, u.workspace_icon
+        from users u
         join sessions s on s.user_id = u.id
         where s.token_hash = $1
         "#,

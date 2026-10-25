@@ -1,6 +1,6 @@
 use crate::{
-    AppConfig,
     components::button::{ButtonSize, ButtonVariant, button_variants},
+    config::Config,
 };
 use chrono::{Datelike, NaiveDate};
 use topcoat::{
@@ -11,7 +11,7 @@ use topcoat::{
 
 #[component]
 pub async fn welcome(cx: &Cx) -> Result<impl View> {
-    let app_config: &AppConfig = app_context(cx);
+    let app_config: &Config = app_context(cx);
 
     // Month preview for the calendar card.
     let today = chrono::Local::now().date_naive();

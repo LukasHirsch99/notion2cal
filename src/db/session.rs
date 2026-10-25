@@ -1,16 +1,9 @@
 use sqlx::{PgPool, types::time::OffsetDateTime};
 use uuid::Uuid;
 
-#[derive(sqlx::FromRow)]
-pub struct Session {
-    pub token_hash: Vec<u8>,
-    pub user_id: Uuid,
-    pub expires_at: OffsetDateTime,
-}
-
 pub async fn create_session(
     db: &PgPool,
-    token_hash: &Vec<u8>,
+    token_hash: &[u8],
     user_id: Uuid,
     expires_at: OffsetDateTime,
 ) -> sqlx::Result<()> {

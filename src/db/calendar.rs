@@ -1,8 +1,11 @@
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, types::Json};
 use uuid::Uuid;
 
-use crate::event_collector::template::Template;
+use crate::{
+    config::Keyring, event_collector::template::Template, middleware::encryption::decrypt_token,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CalendarConfig {
@@ -27,16 +30,19 @@ pub struct Calendar {
 pub struct CalendarFeed {
     pub datasource_id: Uuid,
     pub config: Json<CalendarConfig>,
-    pub access_token: String,
+    pub access_token: SecretString,
 }
 
 /// Loads the public feed data for a calendar, authenticating to Notion with the
 /// owning user's token.
-pub async fn find_feed(db: &PgPool, calendar_id: Uuid) -> sqlx::Result<Option<CalendarFeed>> {
-    sqlx::query_as!(
-        CalendarFeed,
+pub async fn find_feed(
+    db: &PgPool,
+    keyring: &Keyring,
+    calendar_id: Uuid,
+) -> anyhow::Result<CalendarFeed> {
+    let result = sqlx::query!(
         r#"
-        select c.datasource_id, c.config as "config: Json<CalendarConfig>", u.access_token
+        select c.datasource_id, c.config as "config: Json<CalendarConfig>", u.access_token, u.id
         from calendars c
         join users u on u.id = c.user_id
         where c.id = $1
@@ -44,7 +50,15 @@ pub async fn find_feed(db: &PgPool, calendar_id: Uuid) -> sqlx::Result<Option<Ca
         calendar_id
     )
     .fetch_optional(db)
-    .await
+    .await?
+    .ok_or(anyhow::anyhow!("Could not find calendar {calendar_id}"))?;
+
+    let r = decrypt_token(keyring, &result.access_token, &result.id.to_string())?;
+    Ok(CalendarFeed {
+        datasource_id: result.datasource_id,
+        config: result.config,
+        access_token: r,
+    })
 }
 
 /// Lists the calendars owned by a user, newest first.

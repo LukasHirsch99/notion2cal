@@ -1,8 +1,9 @@
 use crate::{
-    AppConfig,
-    middleware::{create_user, current_user},
+    config::Config,
+    middleware::{current_user, login_user},
     notion_api::{NotionApi, token::TokenRes},
 };
+use secrecy::SecretString;
 use topcoat::{
     Result,
     context::{Cx, app_context},
@@ -22,16 +23,16 @@ pub struct Query {
 #[route(GET)]
 async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
     match current_user(cx).await {
-        Some(_) => Ok(see_other("/")),
-        _ => {
+        Ok(_) => Ok(see_other("/")),
+        Err(_) => {
             let query = query_params::<Query>(cx)?;
-            let app_config: &AppConfig = app_context(cx);
+            let app_config: &Config = app_context(cx);
 
             let token_res = NotionApi::get_token(
                 &query.code,
                 &app_config.redirect_uri,
-                &app_config.oauth_client_id,
-                &app_config.oauth_client_secret,
+                &app_config.client_id,
+                &app_config.client_secret,
                 &app_config.api_version,
             )
             .await?;
@@ -47,17 +48,18 @@ async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
                     workspace_name,
                     owner,
                 } => {
-                    create_user(
+                    login_user(
                         cx,
-                        owner,
-                        access_token,
-                        refresh_token,
+                        *owner,
+                        SecretString::from(access_token),
+                        SecretString::from(refresh_token),
                         bot_id,
                         workspace_icon,
                         workspace_id,
                         workspace_name,
                     )
-                    .await?;
+                    .await
+                    .map_err(topcoat::Error::msg)?;
 
                     Ok(see_other("/"))
                 }

@@ -3,3 +3,4 @@
 .env-docker
 .sqlx
 .DS_Store
+dev-secrets/

@@ -1,0 +1,73 @@
+services:
+  app:
+    image: notion2cal:2
+    env_file: .env-docker # non-secret config only
+    environment:
+      DATABASE_URL_FILE: /run/secrets/database_url
+      NOTION_CLIENT_SECRET_FILE: /run/secrets/notion_client_secret
+      NOTION_KEY_DIR: /run/secrets
+      NOTION_KEY_CURRENT: "1"
+    secrets:
+      - source: database_url_v1
+        target: database_url
+        uid: "10001"
+        mode: 0400
+      - source: notion_client_secret_v1
+        target: notion_client_secret
+        uid: "10001"
+        mode: 0400
+      - source: notion_key_v1
+        target: notion_key_v1
+        uid: "10001"
+        mode: 0400
+    networks: [edge, backend]
+    read_only: true
+    cap_drop: [ALL]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    ports:
+      - target: 3001
+        published: 3001
+        protocol: tcp
+        mode: host
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: notion2cal
+      POSTGRES_DB: notion2cal
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - source: db_password_v1
+        target: db_password
+        uid: "999"
+        mode: 0400
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+volumes:
+  pgdata:
+
+networks:
+  edge:
+    driver: overlay
+  backend:
+    driver: overlay
+    internal: true
+
+secrets:
+  database_url_v1:
+    external: true
+  notion_client_secret_v1:
+    external: true
+  notion_key_v1:
+    external: true
+  db_password_v1:
+    external: true

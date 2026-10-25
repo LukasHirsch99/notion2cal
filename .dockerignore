@@ -1,0 +1,9 @@
+.git
+target
+secrets
+.env*
+*.pem
+dev-secrets
+Dockerfile
+compose*.yml
+stack.yml

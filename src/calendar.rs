@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::{
-    AppConfig,
     components::{
         button::{ButtonSize, ButtonVariant, button, button_variants},
         input::input,
     },
+    config::{Config, Keyring},
     db::calendar::{
         CalendarConfig, create_calendar, delete_for_user, find_feed, find_for_user, update_calendar,
     },
@@ -13,7 +13,7 @@ use crate::{
         self,
         template::{self, PAGE_URL_FIELD, Template},
     },
-    middleware::{require_api, require_auth},
+    middleware::{current_user, require_api},
     notion_api::{NotionApi, query_datasource::DataSource, types::page::PagePropertyTpye},
 };
 use sqlx::PgPool;
@@ -110,7 +110,7 @@ async fn configure_calendar(cx: &Cx) -> Result<impl View> {
 /// Edit a saved calendar's configuration.
 #[page("/calendars/{calendar_id}/edit")]
 async fn edit_calendar(cx: &Cx) -> Result<impl View> {
-    let user = require_auth(cx).await?;
+    let user = current_user(cx).await?;
     let calendar_id = *path_param::<CalendarId>(cx)?;
 
     let db: &PgPool = app_context(cx);
@@ -273,10 +273,7 @@ async fn calendar_form(
                         </div>
 
                         <div>
-                            <label
-                                for="location-template"
-                                class="text-sm font-medium"
-                            >
+                            <label for="location-template" class="text-sm font-medium">
                                 "Location template"
                                 <span class="font-normal text-muted-foreground">
                                     " (optional)"
@@ -386,7 +383,7 @@ async fn save_calendar(
     location_template: String,
     url_template: String,
 ) -> Result<String> {
-    let user = require_auth(cx).await?;
+    let user = current_user(cx).await?;
     let api = require_api(cx).await?;
 
     let Ok(datasource_id) = Uuid::parse_str(&datasource_id) else {
@@ -481,7 +478,7 @@ async fn save_calendar(
 /// message for the user on failure.
 #[procedure]
 pub async fn delete_calendar(cx: &Cx, calendar_id: String) -> Result<String> {
-    let user = require_auth(cx).await?;
+    let user = current_user(cx).await?;
     let Ok(calendar_id) = Uuid::parse_str(&calendar_id) else {
         return Ok("Invalid calendar.".to_owned());
     };
@@ -506,12 +503,13 @@ async fn calendar_feed(cx: &Cx) -> Result<Response> {
     let calendar_id = *path_param::<CalendarId>(cx)?;
 
     let db: &PgPool = app_context(cx);
-    let Some(feed) = find_feed(db, calendar_id).await? else {
-        return (StatusCode::NOT_FOUND, "Calendar not found").into_response(cx);
-    };
+    let keyring: &Keyring = app_context(cx);
+    let feed = find_feed(db, keyring, calendar_id)
+        .await
+        .ok_or_not_found()?;
 
-    let config: &AppConfig = app_context(cx);
-    let api = NotionApi::new(&feed.access_token, &config.api_version);
+    let config: &Config = app_context(cx);
+    let api = NotionApi::new(feed.access_token, &config.api_version);
 
     let ics = match event_collector::create_calendar(&api, feed.datasource_id, &feed.config).await {
         Ok(calendar) => calendar.to_string(),

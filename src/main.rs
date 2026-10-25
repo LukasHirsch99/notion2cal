@@ -1,29 +1,32 @@
 use crate::{
     components::{datasource_search::search, welcome::welcome},
+    config::{Config, Keyring},
     middleware::current_user,
 };
+use secrecy::ExposeSecret;
 use sqlx::postgres::PgPoolOptions;
-use std::env;
+use std::{env, path::Path};
 use topcoat::{
-    Result, asset::{Asset, AssetBundle, RouterBuilderAssetExt, asset}, context::Cx, cookie::RouterBuilderCookieExt, router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page}, runtime::RouterBuilderRuntimeExt, session::{RouterBuilderSessionExt, SessionConfig}, tailwind, view::{View, view},
+    Result,
+    asset::{Asset, AssetBundle, RouterBuilderAssetExt, asset},
+    context::Cx,
+    cookie::RouterBuilderCookieExt,
+    router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page},
+    runtime::RouterBuilderRuntimeExt,
+    session::{RouterBuilderSessionExt, SessionConfig},
+    tailwind,
+    view::{View, view},
 };
 
 mod auth;
 mod calendar;
 mod components;
+mod config;
 mod db;
 mod dto;
 mod event_collector;
 mod middleware;
 mod notion_api;
-
-struct AppConfig {
-    oauth_client_id: String,
-    oauth_client_secret: String,
-    notion_auth_url: String,
-    redirect_uri: String,
-    api_version: String,
-}
 
 const FAVICON: Asset = asset!("assets/favicon.svg");
 
@@ -38,23 +41,18 @@ async fn main() -> Result<()> {
 
     dotenv::dotenv().ok();
 
-    let api_version = env::var("NOTION_API_VERSION").expect("NOTION_API_VERSION must be set");
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let oauth_client_id = env::var("OAUTH_CLIENT_ID").expect("OAUTH_CLIENT_ID must be set");
-    let oauth_client_secret =
-        env::var("OAUTH_CLIENT_SECRET").expect("OAUTH_CLIENT_SECRET must be set");
-    let notion_auth_url = env::var("NOTION_AUTH_URL").expect("NOTION_AUTH_URL must be set");
-    let redirect_uri = env::var("REDIRECT_URI").expect("REDIRECT_URI must be set");
+    let config = Config::from_env().map_err(topcoat::Error::msg)?;
+    let keyring = Keyring::load(Path::new(&config.notion_key_dir), config.notion_key_current)
+        .map_err(topcoat::Error::msg)?;
 
     let db = PgPoolOptions::new()
         .max_connections(20)
-        .connect(&database_url)
-        .await
-        .expect("failed to connect to DATABASE_URL");
+        .connect(config.database_url.expose_secret())
+        .await?;
 
     sqlx::migrate!().run(&db).await?;
 
-    let base_url = app_base_url(&redirect_uri);
+    let base_url = app_base_url(&config.redirect_uri);
 
     let router = module_router!()
         .discover()
@@ -63,15 +61,9 @@ async fn main() -> Result<()> {
         .assets(AssetBundle::load()?)
         .base_url(base_url)
         .runtime()
-        // .app_context(api)
         .app_context(db)
-        .app_context(AppConfig {
-            oauth_client_id,
-            oauth_client_secret,
-            notion_auth_url,
-            redirect_uri,
-            api_version,
-        })
+        .app_context(config)
+        .app_context(keyring)
         .build();
 
     topcoat::start(router).await?;
@@ -98,8 +90,7 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
 
 #[page]
 async fn home(cx: &Cx) -> Result<impl View> {
-    let logged_in = current_user(cx).await.is_some();
-
+    let logged_in = current_user(cx).await.is_ok();
     Ok(view! {
         if logged_in {
             search()

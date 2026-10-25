@@ -1,4 +1,5 @@
 use reqwest::header;
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Uuid;
 use topcoat::Result;
@@ -56,7 +57,7 @@ pub enum TokenRes {
         refresh_token: String,
         bot_id: String,
         duplicated_template_id: Option<String>,
-        owner: Owner,
+        owner: Box<Owner>,
         workspace_icon: Option<String>,
         workspace_id: String,
         workspace_name: Option<String>,
@@ -72,15 +73,15 @@ impl NotionApi {
         code: &String,
         redirect_uri: &String,
         client_id: &String,
-        client_secret: &String,
+        client_secret: &SecretString,
         api_version: &String,
     ) -> Result<TokenRes> {
         Ok(reqwest::Client::new()
-            .post(format!("{}oauth/token", BASE_URL))
+            .post(format!("{}/oauth/token", BASE_URL))
             .header(header::ACCEPT, "application/json")
             .header(header::CONTENT_TYPE, "application/json")
             .header("Notion-Version", api_version)
-            .basic_auth(client_id, Some(client_secret))
+            .basic_auth(client_id, Some(client_secret.expose_secret()))
             .json(&TokenBody {
                 grant_type: GrantType::AuthorizationCode {
                     code: code.to_string(),
@@ -88,8 +89,10 @@ impl NotionApi {
                 redirect_uri: redirect_uri.to_string(),
             })
             .send()
-            .await?
+            .await
+            .inspect_err(|e| println!("{e}"))?
             .json()
-            .await?)
+            .await
+            .inspect_err(|e| println!("{e}"))?)
     }
 }

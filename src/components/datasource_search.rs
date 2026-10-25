@@ -1,7 +1,7 @@
 use crate::{
     components::{calendar_list::calendars, input::input},
     dto::DatasourceDto,
-    middleware::{require_api, require_auth},
+    middleware::{current_user, require_api},
     notion_api::types::page::{PageDesc, PagePropertyTpye},
 };
 use topcoat::{
@@ -26,7 +26,7 @@ const DATASOURCE: IconData = IconData::unescaped_unchecked(
 #[component]
 pub async fn search(cx: &Cx) -> Result<impl View> {
     let query = signal(cx, String::new);
-    let user = require_auth(cx).await?;
+    let user = current_user(cx).await?;
     let username = user.username.clone().unwrap_or_else(|| "there".to_owned());
 
     Ok(view! {

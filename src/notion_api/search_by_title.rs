@@ -1,4 +1,4 @@
-use crate::notion_api::{BASE_URL, NotionApi, common::RequestStatus, types::page::PageDesc};
+use crate::notion_api::{NotionApi, common::RequestStatus, types::page::PageDesc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -51,19 +51,19 @@ pub struct SearchRes {
 impl NotionApi {
     pub async fn search_datasources(&self, query: &str) -> anyhow::Result<Vec<PageDesc>> {
         Ok(self
-            .client
-            .post((BASE_URL.to_string() + "search").as_str())
-            .json(&SearchReq {
-                query: query.to_string(),
-                start_cursor: None,
-                page_size: 100,
-                filter: SearchReqFilter::Property {
-                    property: SearchReqFilterProperty::Object,
-                    value: SearchReqFilterValue::DataSource,
-                    in_trash: false,
+            .post(
+                "search",
+                &SearchReq {
+                    query: query.to_string(),
+                    start_cursor: None,
+                    page_size: 100,
+                    filter: SearchReqFilter::Property {
+                        property: SearchReqFilterProperty::Object,
+                        value: SearchReqFilterValue::DataSource,
+                        in_trash: false,
+                    },
                 },
-            })
-            .send()
+            )
             .await?
             .error_for_status()?
             .json::<SearchRes>()
