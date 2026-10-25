@@ -64,6 +64,7 @@ DATABASE_URL=postgres://notion2cal:devpassword@localhost:5432/notion2cal
 NOTION_API_VERSION=2026-03-11
 NOTION_CLIENT_ID=your-client-id
 NOTION_CLIENT_SECRET=your-client-secret
+NOTION_AUTH_URL=your-auth-uri
 NOTION_REDIRECT_URI=http://localhost:3001/auth/notion/callback
 NOTION_KEY_DIR=./dev-secrets
 NOTION_KEY_CURRENT=1
