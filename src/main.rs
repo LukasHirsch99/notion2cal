@@ -1,6 +1,7 @@
 use crate::{
     components::{datasource_search::search, welcome::welcome},
     config::{Config, Keyring},
+    db::Repo,
     middleware::current_user,
 };
 use secrecy::ExposeSecret;
@@ -49,8 +50,8 @@ async fn main() -> Result<()> {
         .max_connections(20)
         .connect(config.database_url.expose_secret())
         .await?;
-
     sqlx::migrate!().run(&db).await?;
+    let repo = Repo::new(db);
 
     let base_url = app_base_url(&config.redirect_uri);
 
@@ -61,7 +62,7 @@ async fn main() -> Result<()> {
         .assets(AssetBundle::load()?)
         .base_url(base_url)
         .runtime()
-        .app_context(db)
+        .app_context(repo)
         .app_context(config)
         .app_context(keyring)
         .build();

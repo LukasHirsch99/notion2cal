@@ -4,10 +4,9 @@ use crate::{
         button::{ButtonSize, ButtonVariant, button, button_variants},
         input::input,
     },
-    db::calendar::list_for_user,
+    db::Repo,
     middleware::current_user,
 };
-use sqlx::PgPool;
 use topcoat::{
     Result,
     context::{Cx, app_context, base_url},
@@ -25,8 +24,9 @@ const CALENDAR: IconData = IconData::unescaped_unchecked(
 #[component]
 pub async fn calendars(cx: &Cx) -> Result<impl View> {
     let user = current_user(cx).await?;
-    let db: &PgPool = app_context(cx);
-    let calendars = list_for_user(db, user.id)
+    let repo: &Repo = app_context(cx);
+    let calendars = repo
+        .list_for_user(user.id)
         .await
         .map_err(topcoat::Error::msg)?;
 

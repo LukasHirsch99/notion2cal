@@ -6,9 +6,7 @@ use crate::{
         input::input,
     },
     config::{Config, Keyring},
-    db::calendar::{
-        CalendarConfig, create_calendar, delete_for_user, find_feed, find_for_user, update_calendar,
-    },
+    db::{Repo, calendar::CalendarConfig},
     event_collector::{
         self,
         template::{self, PAGE_URL_FIELD, Template},
@@ -16,7 +14,6 @@ use crate::{
     middleware::{current_user, require_api},
     notion_api::{NotionApi, query_datasource::DataSource, types::page::PagePropertyTpye},
 };
-use sqlx::PgPool;
 use topcoat::{
     Result,
     context::{Cx, app_context},
@@ -113,8 +110,9 @@ async fn edit_calendar(cx: &Cx) -> Result<impl View> {
     let user = current_user(cx).await?;
     let calendar_id = *path_param::<CalendarId>(cx)?;
 
-    let db: &PgPool = app_context(cx);
-    let calendar = find_for_user(db, calendar_id, user.id)
+    let db: &Repo = app_context(cx);
+    let calendar = db
+        .find_for_user(calendar_id, user.id)
         .await?
         .ok_or_not_found()?;
 
@@ -452,16 +450,20 @@ async fn save_calendar(
         title
     };
 
-    let db: &PgPool = app_context(cx);
+    let db: &Repo = app_context(cx);
 
     let result = match calendar_id {
         Some(calendar_id) => {
             let Ok(calendar_id) = Uuid::parse_str(&calendar_id) else {
                 return Ok("Invalid calendar.".to_owned());
             };
-            update_calendar(db, calendar_id, user.id, &title, &config).await
+            db.update_calendar(calendar_id, user.id, &title, &config)
+                .await
         }
-        None => create_calendar(db, user.id, datasource_id, &title, &config).await,
+        None => Ok(db
+            .create_calendar(user.id, datasource_id, &title, &config)
+            .await
+            .is_ok()),
     };
 
     match result {
@@ -483,8 +485,8 @@ pub async fn delete_calendar(cx: &Cx, calendar_id: String) -> Result<String> {
         return Ok("Invalid calendar.".to_owned());
     };
 
-    let db: &PgPool = app_context(cx);
-    match delete_for_user(db, calendar_id, user.id).await {
+    let db: &Repo = app_context(cx);
+    match db.delete_for_user(calendar_id, user.id).await {
         Ok(true) => Ok(String::new()),
         Ok(false) => Ok("Calendar not found.".to_owned()),
         Err(error) => {
@@ -502,11 +504,9 @@ pub async fn delete_calendar(cx: &Cx, calendar_id: String) -> Result<String> {
 async fn calendar_feed(cx: &Cx) -> Result<Response> {
     let calendar_id = *path_param::<CalendarId>(cx)?;
 
-    let db: &PgPool = app_context(cx);
+    let db: &Repo = app_context(cx);
     let keyring: &Keyring = app_context(cx);
-    let feed = find_feed(db, keyring, calendar_id)
-        .await
-        .ok_or_not_found()?;
+    let feed = db.find_feed(keyring, calendar_id).await.ok_or_not_found()?;
 
     let config: &Config = app_context(cx);
     let api = NotionApi::new(feed.access_token, &config.api_version);

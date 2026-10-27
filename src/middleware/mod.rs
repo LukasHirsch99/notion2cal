@@ -1,10 +1,6 @@
 use crate::{
     config::{Config, Keyring},
-    db::{
-        self,
-        session::create_session,
-        user::{User, get_token_by_hash, get_user_by_session, upsert_user},
-    },
+    db::{self, Repo, user::User},
     notion_api::{
         NotionApi,
         token::{
@@ -14,7 +10,6 @@ use crate::{
     },
 };
 use secrecy::{ExposeSecret, SecretString};
-use sqlx::PgPool;
 use topcoat::{
     Result,
     context::{Cx, app_context, memoize},
@@ -67,12 +62,10 @@ pub async fn login_user(
         },
     };
 
-    let db: &PgPool = app_context(cx);
+    let db: &Repo = app_context(cx);
     let keyring: &Keyring = app_context(cx);
-    println!("Will now create user...");
 
-    upsert_user(
-        db,
+    db.upsert_user(
         keyring,
         &db::user::User {
             id: user.id,
@@ -94,7 +87,8 @@ pub async fn login_user(
         .map_err(|_| anyhow::anyhow!("Could not start session"))?;
     let token_hash = session.token_hash;
     let expires_at = session.expires_at;
-    create_session(db, &token_hash.to_vec(), user.id, expires_at.into()).await?;
+    db.create_session(&token_hash.to_vec(), user.id, expires_at.into())
+        .await?;
 
     Ok(())
 }
@@ -119,8 +113,8 @@ async fn fetch_user_by_session_hash(
     cx: &Cx,
     session_hash: &Vec<u8>,
 ) -> Result<User, UnauthorizedError> {
-    let db: &PgPool = app_context(cx);
-    get_user_by_session(db, session_hash)
+    let db: &Repo = app_context(cx);
+    db.get_user_by_session(session_hash)
         .await
         .ok_or_unauthorized()?
         .ok_or_unauthorized()
@@ -131,10 +125,10 @@ async fn fetch_access_token_by_session_hash(
     cx: &Cx,
     session_hash: &Vec<u8>,
 ) -> Result<SecretString, UnauthorizedError> {
-    let db: &PgPool = app_context(cx);
+    let db: &Repo = app_context(cx);
     let keyring: &Keyring = app_context(cx);
 
-    get_token_by_hash(db, keyring, session_hash)
+    db.get_token_by_hash(keyring, session_hash)
         .await
         .ok_or_unauthorized()
 }
