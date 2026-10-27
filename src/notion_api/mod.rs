@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use reqwest::{Response, header};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
@@ -43,7 +45,7 @@ impl NotionApi {
             .await
     }
 
-    async fn post<T>(&self, path: &str, json: &T) -> reqwest::Result<Response>
+    async fn post<T>(&self, path: &str, json: &T) -> anyhow::Result<Response>
     where
         T: Serialize + ?Sized,
     {
@@ -53,5 +55,35 @@ impl NotionApi {
             .json(json)
             .send()
             .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
+    }
+
+    async fn post_with_params<T, I, K, V>(
+        &self,
+        path: &str,
+        json: &T,
+        params: Option<I>,
+    ) -> anyhow::Result<Response>
+    where
+        T: Serialize + ?Sized,
+        I: IntoIterator,
+        I::Item: Borrow<(K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        let base_url = format!("{BASE_URL}/{path}");
+        let url = match params {
+            Some(params) => reqwest::Url::parse_with_params(&base_url, params)
+                .map_err(|_| anyhow::anyhow!("Could not parse url {base_url}"))?,
+            None => reqwest::Url::parse(&base_url)
+                .map_err(|_| anyhow::anyhow!("Could not parse url {base_url}"))?,
+        };
+        self.client
+            .post(url)
+            .bearer_auth(self.token.expose_secret())
+            .json(json)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
     }
 }

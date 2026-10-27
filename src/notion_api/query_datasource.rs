@@ -592,13 +592,12 @@ impl NotionApi {
             .iter()
             .map(|prop| ("filter_properties[]", prop));
 
-        let url = reqwest::Url::parse_with_params(
-            &format!("{}data_sources/{}/query", BASE_URL, datasource_id),
-            params,
-        )?;
-
         Ok(self
-            .post(url.as_ref(), &query)
+            .post_with_params(
+                &format!("data_sources/{}/query", datasource_id),
+                &query,
+                Some(params),
+            )
             .await?
             .error_for_status()?
             .json::<DatasourceQueryRes>()
