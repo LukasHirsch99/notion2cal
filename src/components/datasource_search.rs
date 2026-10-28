@@ -1,5 +1,5 @@
 use crate::{
-    components::{calendar_list::calendars, input::input},
+    components::{calendar_list::calendars, input::input, theme_button::theme_button},
     dto::DatasourceDto,
     middleware::{current_user, require_api},
     notion_api::types::page::{PageDesc, PagePropertyTpye},
@@ -30,12 +30,10 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
     let username = user.username.clone().unwrap_or_else(|| "there".to_owned());
 
     Ok(view! {
-        <main class="mx-auto w-full max-w-2xl pt-10 pb-16 sm:pt-20">
+        <main class="mx-auto w-full pb-16">
             <header>
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    "Hello, "
-                    (username)
-                    "."
+                    "Hello, " (username) "."
                 </h1>
                 <p class="mt-2 text-sm text-muted-foreground sm:text-base">
                     "Manage your calendars, or add a new one from a Notion datasource."

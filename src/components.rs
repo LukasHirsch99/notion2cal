@@ -4,3 +4,4 @@ pub mod card;
 pub mod datasource_search;
 pub mod input;
 pub mod welcome;
+pub mod theme_button;

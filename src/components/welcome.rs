@@ -1,6 +1,5 @@
 use crate::{
-    components::button::{ButtonSize, ButtonVariant, button_variants},
-    config::Config,
+    components::{button::{ButtonSize, ButtonVariant, button_variants}, theme_button::theme_button}, config::Config,
 };
 use chrono::{Datelike, NaiveDate};
 use topcoat::{
@@ -85,11 +84,7 @@ pub async fn welcome(cx: &Cx) -> Result<impl View> {
     let next_event_when = next_event_date.format("%a, %b %-d").to_string();
 
     Ok(view! {
-        <main class="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-5xl flex-col">
-            <header class="py-6">
-                <span class="text-sm font-semibold tracking-tight">"Notion2Cal"</span>
-            </header>
-
+        <main class="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full flex-col">
             <div
                 class="grid flex-1 content-center items-center gap-14 pb-20 md:grid-cols-[1.1fr_0.9fr] md:gap-10 md:pb-6"
             >

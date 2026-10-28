@@ -1,5 +1,5 @@
 use crate::{
-    components::{datasource_search::search, welcome::welcome},
+    components::{datasource_search::search, theme_button::theme_button, welcome::welcome},
     config::{Config, Keyring},
     db::Repo,
     middleware::current_user,
@@ -81,10 +81,27 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 topcoat::dev::script()
                 topcoat::runtime::script()
+                <script>
+                    "(function () {
+                          try {
+                            var saved = localStorage.getItem('theme');
+                            var dark = saved
+                              ? saved === 'dark'
+                              : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                            document.documentElement.classList.toggle('dark', dark);
+                          } catch (e) {}
+                        })();"
+                </script>
                 <link rel="stylesheet" href=(tailwind::stylesheet!())>
                 <link rel="icon" type="image/svg+xml" href=(FAVICON)>
             </head>
-            <body class="p-5">(slot)</body>
+            <body class="mx-auto flex w-full max-w-5xl px-6 flex-col">
+                <header class="py-12 flex justify-between">
+                    <span class="text-sm font-semibold tracking-tight">"Notion2Cal"</span>
+                    theme_button()
+                </header>
+                (slot)
+            </body>
         </html>
     })
 }

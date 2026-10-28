@@ -180,7 +180,7 @@ async fn calendar_form(
     };
 
     Ok(view! {
-        <main class="mx-auto w-full max-w-2xl pt-10 pb-16 sm:pt-20">
+        <main class="mx-auto w-full pb-16">
             <a
                 href="/"
                 class="text-sm text-muted-foreground transition-colors hover:text-foreground"
