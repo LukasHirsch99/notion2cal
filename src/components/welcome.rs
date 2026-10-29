@@ -1,5 +1,6 @@
 use crate::{
-    components::{button::{ButtonSize, ButtonVariant, button_variants}, theme_button::theme_button}, config::Config,
+    components::button::{ButtonSize, ButtonVariant, button_variants},
+    config::Config,
 };
 use chrono::{Datelike, NaiveDate};
 use topcoat::{

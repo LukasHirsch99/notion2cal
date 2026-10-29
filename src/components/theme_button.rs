@@ -24,7 +24,9 @@ pub async fn theme_button() -> Result<impl View> {
             // Visible in light mode: show a moon ("switch to dark")
             <span class="dark:hidden">icon(data: feather::MOON, label: "Dark")</span>
             // Visible in dark mode: show a sun ("switch to light")
-            <span class="hidden dark:inline">icon(data: feather::SUN, label: "Light")</span>
+            <span class="hidden dark:inline">
+                icon(data: feather::SUN, label: "Light")
+            </span>
         )
     })
 }

@@ -1,6 +1,6 @@
 services:
   app:
-    image: notion2cal:3.2
+    image: notion2cal:3.3
     env_file: .env-docker # non-secret config only
     environment:
       DATABASE_URL_FILE: /run/secrets/database_url

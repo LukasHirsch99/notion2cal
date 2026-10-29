@@ -5,3 +5,6 @@ pub mod datasource_search;
 pub mod input;
 pub mod welcome;
 pub mod theme_button;
+pub mod avatar;
+pub mod popover;
+pub mod floating;

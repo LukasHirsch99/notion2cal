@@ -97,7 +97,9 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
             </head>
             <body class="mx-auto flex w-full max-w-5xl px-6 flex-col">
                 <header class="py-12 flex justify-between">
-                    <span class="text-sm font-semibold tracking-tight">"Notion2Cal"</span>
+                    <span class="text-sm font-semibold tracking-tight">
+                        "Notion2Cal"
+                    </span>
                     theme_button()
                 </header>
                 (slot)

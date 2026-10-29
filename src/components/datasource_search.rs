@@ -1,5 +1,10 @@
 use crate::{
-    components::{calendar_list::calendars, input::input, theme_button::theme_button},
+    components::{
+        avatar::{AvatarSize, avatar, avatar_fallback, avatar_image},
+        button::{ButtonSize, ButtonVariant, button},
+        calendar_list::calendars,
+        input::input,
+    },
     dto::DatasourceDto,
     middleware::{current_user, require_api},
     notion_api::types::page::{PageDesc, PagePropertyTpye},
@@ -28,16 +33,32 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
     let query = signal(cx, String::new);
     let user = current_user(cx).await?;
     let username = user.username.clone().unwrap_or_else(|| "there".to_owned());
+    let avatar_fb = username.chars().next().unwrap();
+    let avatar_url = user.avatar_url.clone().unwrap_or_else(|| "".to_owned());
 
     Ok(view! {
         <main class="mx-auto w-full pb-16">
-            <header>
-                <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    "Hello, " (username) "."
-                </h1>
-                <p class="mt-2 text-sm text-muted-foreground sm:text-base">
-                    "Manage your calendars, or add a new one from a Notion datasource."
-                </p>
+            <header class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
+                        "Hello, "
+                        (username.clone())
+                        "."
+                    </h1>
+                    <p class="mt-2 text-sm text-muted-foreground sm:text-base">
+                        "Manage your calendars, or add a new one from a Notion datasource."
+                    </p>
+                </div>
+                button(
+                    size: ButtonSize::Round,
+                    variant: ButtonVariant::Ghost,
+                    attrs: attributes! { class="rounded-full" },
+                    avatar(
+                        size: AvatarSize::Lg,
+                        avatar_image(attrs: attributes! { src=(avatar_url) })
+                        avatar_fallback((avatar_fb))
+                    )
+                )
             </header>
 
             calendars()

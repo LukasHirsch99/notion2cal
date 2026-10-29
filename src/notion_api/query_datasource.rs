@@ -1,5 +1,5 @@
 use crate::notion_api::{
-    BASE_URL, NotionApi,
+    NotionApi,
     common::RequestStatus,
     types::page::{Page, PagePropertyDesc, PageTitle},
 };
