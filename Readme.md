@@ -1,4 +1,6 @@
+<img src="assets/favicon.svg" width="48" alt="Favicon">
 
+[Notion2Cal Website](https://n2c.hirsch.engineer)
 
 ## Building
 
