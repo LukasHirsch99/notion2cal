@@ -76,7 +76,7 @@ impl Repo {
             r#"
             select u.id, u.access_token from users u
             join sessions s on s.user_id = u.id
-            where s.token_hash = $1
+            where s.token_hash = $1 and s.expires_at > now()
             "#,
             token_hash
         )
@@ -112,7 +112,7 @@ impl Repo {
             u.workspace_id, u.workspace_name, u.workspace_icon
             from users u
             join sessions s on s.user_id = u.id
-            where s.token_hash = $1
+            where s.token_hash = $1 and s.expires_at > now()
             "#,
             token_hash
         )

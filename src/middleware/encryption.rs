@@ -17,7 +17,6 @@ pub fn encrypt_token(
 ) -> anyhow::Result<Vec<u8>> {
     let cipher = Aes256Gcm::new_from_slice(key)?;
     let nonce = Nonce::generate();
-    println!("encrypting...");
     let ct = cipher
         .encrypt(
             &nonce,

@@ -78,6 +78,9 @@ pub fn parse<T>(src: &str, props: HashMap<String, T>) -> Result<Template, ParseE
             _ => text.push(c),
         }
     }
+    if !text.is_empty() {
+        segments.push(Segment::Text(text));
+    }
 
     Ok(segments)
 }
