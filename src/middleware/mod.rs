@@ -82,13 +82,20 @@ pub async fn login_user(
     )
     .await?;
 
-    let session = session::start(cx)
-        .await
-        .map_err(|_| anyhow::anyhow!("Could not start session"))?;
-    let token_hash = session.token_hash;
-    let expires_at = session.expires_at;
-    db.create_session(&token_hash.to_vec(), user.id, expires_at.into())
-        .await?;
+    if matches!(
+        session::token_hash(cx)
+            .await
+            .map_err(|_| anyhow::anyhow!("Error retrieving session"))?,
+        None
+    ) {
+        let session = session::start(cx)
+            .await
+            .map_err(|_| anyhow::anyhow!("Could not start session"))?;
+        let token_hash = session.token_hash;
+        let expires_at = session.expires_at;
+        db.create_session(&token_hash.to_vec(), user.id, expires_at.into())
+            .await?;
+    }
 
     Ok(())
 }
