@@ -29,4 +29,11 @@ impl Repo {
             .await?;
         Ok(())
     }
+
+    pub async fn delete_session(&self, token_hash: &[u8]) -> sqlx::Result<bool> {
+        let result = sqlx::query!("delete from sessions where token_hash = $1", token_hash)
+            .execute(&self.db)
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
 }

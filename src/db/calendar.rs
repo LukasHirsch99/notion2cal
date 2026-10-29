@@ -55,12 +55,17 @@ impl Repo {
         .await?
         .ok_or(anyhow::anyhow!("Could not find calendar {calendar_id}"))?;
 
-        let r = decrypt_token(keyring, &result.access_token, &result.id.to_string())?;
-        Ok(CalendarFeed {
-            datasource_id: result.datasource_id,
-            config: result.config,
-            access_token: r,
-        })
+        match result.access_token {
+            Some(access_token) => {
+                let r = decrypt_token(keyring, &access_token, &result.id.to_string())?;
+                Ok(CalendarFeed {
+                    datasource_id: result.datasource_id,
+                    config: result.config,
+                    access_token: r,
+                })
+            }
+            None => Err(anyhow::anyhow!("No token for user")),
+        }
     }
 
     /// Lists the calendars owned by a user, newest first.

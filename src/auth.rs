@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    middleware::{current_user, login_user},
+    middleware::login_user,
     notion_api::{NotionApi, token::TokenRes},
 };
 use secrecy::SecretString;
@@ -15,21 +15,20 @@ use topcoat::{
 
 #[query_params(error = bad_request)]
 pub struct Query {
-    pub code: String,
+    pub code: Option<String>,
     pub state: Option<String>,
     pub error: Option<String>,
 }
 
 #[route(GET)]
 async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
-    match current_user(cx).await {
-        Ok(_) => Ok(see_other("/")),
-        Err(_) => {
-            let query = query_params::<Query>(cx)?;
-            let app_config: &Config = app_context(cx);
+    let query = query_params::<Query>(cx)?;
+    let app_config: &Config = app_context(cx);
 
+    match query.code {
+        Some(ref code) => {
             let token_res = NotionApi::get_token(
-                &query.code,
+                code,
                 &app_config.redirect_uri,
                 &app_config.client_id,
                 &app_config.client_secret,
@@ -75,5 +74,6 @@ async fn auth_redirect(cx: &Cx) -> Result<SeeOther> {
                 }
             }
         }
+        None => Ok(see_other("/")),
     }
 }

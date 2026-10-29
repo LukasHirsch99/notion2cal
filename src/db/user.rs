@@ -13,8 +13,8 @@ pub struct User {
     pub username: Option<String>,
     pub avatar_url: Option<String>,
     pub email: Option<String>,
-    pub bot_id: String,
-    pub workspace_id: String,
+    pub bot_id: Option<String>,
+    pub workspace_id: Option<String>,
     pub workspace_name: Option<String>,
     pub workspace_icon: Option<String>,
 }
@@ -86,7 +86,10 @@ impl Repo {
             "Could not find user for token_hash {token_hash:?}"
         ))?;
 
-        decrypt_token(keyring, &result.access_token, &result.id.to_string())
+        match result.access_token {
+            None => Err(anyhow::anyhow!("No token for user")),
+            Some(access_token) => decrypt_token(keyring, &access_token, &result.id.to_string()),
+        }
     }
 
     pub async fn get_user(&self, id: Uuid) -> sqlx::Result<Option<User>> {
@@ -118,5 +121,18 @@ impl Repo {
         )
         .fetch_optional(&self.db)
         .await
+    }
+
+    pub async fn delete_user_by_id(&self, id: Uuid) -> sqlx::Result<bool> {
+        let result = sqlx::query_as!(
+            User,
+            r#"
+            delete from users where id = $1
+            "#,
+            id
+        )
+        .execute(&self.db)
+        .await?;
+        Ok(result.rows_affected() > 0)
     }
 }

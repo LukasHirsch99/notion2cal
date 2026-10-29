@@ -1,31 +1,28 @@
 use crate::{
     components::{
         avatar::{AvatarSize, avatar, avatar_fallback, avatar_image},
-        button::{ButtonSize, ButtonVariant, button},
+        button::{ButtonSize, ButtonVariant, button, button_variants},
         calendar_list::calendars,
+        floating::FloatingAlign,
         input::input,
+        popover::{popover, popover_content, popover_trigger},
     },
+    config::Config,
+    db::Repo,
     dto::DatasourceDto,
     middleware::{current_user, require_api},
     notion_api::types::page::{PageDesc, PagePropertyTpye},
 };
 use topcoat::{
     Result,
-    context::Cx,
-    icon::{IconData, icon},
-    runtime::{Event, shard, signal},
-    view::{View, attributes, component, svg::ViewBox, view},
+    context::{Cx, app_context},
+    icon::{icon, iconify},
+    runtime::{Event, procedure, shard, signal},
+    session,
+    view::{View, attributes, component, element_id, view},
 };
 
-const SEARCH: IconData = IconData::unescaped_unchecked(
-    ViewBox::new(0.0, 0.0, 24.0, 24.0),
-    r#"<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4.35-4.35"/>"#,
-);
-
-const DATASOURCE: IconData = IconData::unescaped_unchecked(
-    ViewBox::new(0.0, 0.0, 24.0, 24.0),
-    r#"<path fill="currentColor" d="M12,3C7.58,3 4,4.34 4,6V18C4,19.66 7.58,21 12,21C16.42,21 20,19.66 20,18V6C20,4.34 16.42,3 12,3M12,5C15.87,5 18,5.9 18,6C18,6.1 15.87,7 12,7C8.13,7 6,6.1 6,6C6,5.9 8.13,5 12,5M18,10.5C17.1,11.1 14.9,11.5 12,11.5C9.1,11.5 6.9,11.1 6,10.5V8.9C7.5,9.5 9.7,9.8 12,9.8C14.3,9.8 16.5,9.5 18,8.9V10.5M18,15C17.1,15.6 14.9,16 12,16C9.1,16 6.9,15.6 6,15V13.5C7.5,14.1 9.7,14.4 12,14.4C14.3,14.4 16.5,14.1 18,13.5V15M18,18.1C17.1,18.7 14.9,19.1 12,19.1C9.1,19.1 6.9,18.7 6,18.1V17C7.5,17.6 9.7,17.9 12,17.9C14.3,17.9 16.5,17.6 18,17V18.1Z"/>"#,
-);
+iconify::include!("feather");
 
 /// The logged-in home page: search Notion datasources and list them.
 #[component]
@@ -35,6 +32,8 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
     let username = user.username.clone().unwrap_or_else(|| "there".to_owned());
     let avatar_fb = username.chars().next().unwrap();
     let avatar_url = user.avatar_url.clone().unwrap_or_else(|| "".to_owned());
+    let share = element_id(cx);
+    let config: &Config = app_context(cx);
 
     Ok(view! {
         <main class="mx-auto w-full pb-16">
@@ -49,14 +48,54 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
                         "Manage your calendars, or add a new one from a Notion datasource."
                     </p>
                 </div>
-                button(
-                    size: ButtonSize::Round,
-                    variant: ButtonVariant::Ghost,
-                    attrs: attributes! { class="rounded-full" },
-                    avatar(
-                        size: AvatarSize::Lg,
-                        avatar_image(attrs: attributes! { src=(avatar_url) })
-                        avatar_fallback((avatar_fb))
+                popover(
+                    popover_trigger(
+                        target: &share,
+                        avatar(
+                            size: AvatarSize::Lg,
+                            avatar_image(attrs: attributes! { src=(avatar_url) })
+                            avatar_fallback(<span class="font-bold">(avatar_fb)</span>)
+                        )
+                    )
+                    popover_content(
+                        id: &share,
+                        align: FloatingAlign::End,
+                        <div class="flex flex-col gap-2">
+                            <a
+                                href=(config.notion_auth_url.clone())
+                                class=(button_variants(
+                                    ButtonVariant::Outline,
+                                    ButtonSize::Sm,
+                                ))
+                            >
+                                "Manage connection"
+                                icon(data: feather::SETTINGS)
+                            </a>
+                            button(
+                                variant: ButtonVariant::Outline,
+                                size: ButtonSize::Sm,
+                                attrs: attributes! {
+                                    @click=$(async |_e: Event| {
+                                        logout().await;
+                                        raw!("location.assign('/')")
+                                    })
+                                },
+                                "Logout"
+                                icon(data: feather::LOG_OUT)
+                            )
+                            button(
+                                variant: ButtonVariant::Destructive,
+                                size: ButtonSize::Sm,
+                                attrs: attributes! {
+                                    @click=$(async |_e: Event| {
+                                        delete_account().await;
+                                        raw!("location.assign('/')")
+                                    })
+                                },
+                                "Delete Account"
+                                icon(data: feather::DELETE)
+                            )
+                        </div>
                     )
                 )
             </header>
@@ -69,7 +108,7 @@ pub async fn search(cx: &Cx) -> Result<impl View> {
                 </p>
                 <div class="relative">
                     icon(
-                        data: SEARCH,
+                        data: feather::SEARCH,
                         size: 16,
                         attrs: attributes! {
                             class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
@@ -170,7 +209,7 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
                         class="mx-auto flex size-10 items-center justify-center rounded-lg bg-foreground/5 text-muted-foreground"
                         aria-hidden="true"
                     >
-                        icon(data: DATASOURCE, size: 18)
+                        icon(data: feather::DATABASE, size: 18)
                     </div>
                     <p class="mt-4 text-sm font-medium">(empty_title)</p>
                     <p
@@ -196,7 +235,7 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
                                     <span class=(row.tile_class) aria-hidden="true">
                                         match row.emoji {
                                             Some(emoji) => (emoji),
-                                            None => icon(data: DATASOURCE, size: 16),
+                                            None => icon(data: feather::DATABASE, size: 16),
                                         }
                                     </span>
                                     <span class="min-w-0 flex-1 truncate text-sm font-medium">
@@ -208,7 +247,7 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
                                     <span class=(row.tile_class) aria-hidden="true">
                                         match row.emoji {
                                             Some(emoji) => (emoji),
-                                            None => icon(data: DATASOURCE, size: 16),
+                                            None => icon(data: feather::DATABASE, size: 16),
                                         }
                                     </span>
                                     <span class="min-w-0 flex-1 truncate text-sm font-medium">
@@ -225,4 +264,27 @@ async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
             }
         </div>
     })
+}
+
+#[procedure]
+async fn logout(cx: &Cx) -> Result<()> {
+    let repo: &Repo = app_context(cx);
+    let session_hash = session::stop(cx).await?;
+    if let Some(session_hash) = session_hash {
+        repo.delete_session(&session_hash.to_vec())
+            .await
+            .inspect_err(|e| println!("{e}"))?;
+    }
+    Ok(())
+}
+
+#[procedure]
+async fn delete_account(cx: &Cx) -> Result<()> {
+    let repo: &Repo = app_context(cx);
+    let user = current_user(cx).await?;
+    let api = require_api(cx).await?;
+    api.revoke_token().await.map_err(topcoat::Error::msg)?;
+    repo.delete_user_by_id(user.id).await?;
+    session::stop(cx).await?;
+    Ok(())
 }
