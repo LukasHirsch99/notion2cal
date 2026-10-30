@@ -31,3 +31,7 @@ file = "src/components/input.rs"
 [registries.topcoat.components.popover]
 hash = "sha256:32946542e73a3701fb42b43b61c6795aef984b7dafe280c6d3c06e71c5666610"
 file = "src/components/popover.rs"
+
+[registries.topcoat.components.tabs]
+hash = "sha256:a9553fe4b7845c6023cfbfd098e084740b4517bcf671ee371095286c36f0fbfc"
+file = "src/components/tabs.rs"

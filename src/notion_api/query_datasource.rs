@@ -28,6 +28,16 @@ pub struct DataSource {
     pub properties: HashMap<String, PagePropertyDesc>,
 }
 
+impl DataSource {
+    pub fn title(&self) -> String {
+        self.title
+            .iter()
+            .map(|t| t.plain_text.clone())
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Small building blocks
 // ---------------------------------------------------------------------------

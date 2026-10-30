@@ -178,10 +178,10 @@ mod tests {
     fn config(date_col: &str) -> CalendarConfig {
         CalendarConfig {
             date_col: date_col.to_owned(),
-            title_template: vec![Segment::Text("Event".to_owned())],
-            description_template: Vec::new(),
-            location_template: Vec::new(),
-            url_template: Vec::new(),
+            title_template: vec![Segment::Text("Event".to_owned())].into(),
+            description_template: Template::default(),
+            location_template: Template::default(),
+            url_template: Template::default(),
         }
     }
 

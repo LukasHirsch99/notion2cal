@@ -8,15 +8,7 @@ use secrecy::ExposeSecret;
 use sqlx::postgres::PgPoolOptions;
 use std::{env, path::Path};
 use topcoat::{
-    Result,
-    asset::{Asset, AssetBundle, RouterBuilderAssetExt, asset},
-    context::Cx,
-    cookie::RouterBuilderCookieExt,
-    router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page},
-    runtime::RouterBuilderRuntimeExt,
-    session::{RouterBuilderSessionExt, SessionConfig},
-    tailwind,
-    view::{View, view},
+    Result, asset::{Asset, AssetBundle, RouterBuilderAssetExt, asset}, context::Cx, cookie::RouterBuilderCookieExt, font::fontsource::fontsource_font, router::{RouterBuilderDiscoverExt, Slot, layout, module_router, page}, runtime::RouterBuilderRuntimeExt, session::{RouterBuilderSessionExt, SessionConfig}, tailwind, view::{View, view},
 };
 
 mod auth;
@@ -92,6 +84,7 @@ async fn layout(slot: Slot<'_>) -> Result<impl View> {
                           } catch (e) {}
                         })();"
                 </script>
+                topcoat::font::link(font: fontsource_font!(GEIST))
                 <link rel="stylesheet" href=(tailwind::stylesheet!())>
                 <link rel="icon" type="image/svg+xml" href=(FAVICON)>
             </head>

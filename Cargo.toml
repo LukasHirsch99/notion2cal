@@ -12,7 +12,7 @@ reqwest = { version = "0.13.5", default-features = false, features = ["json", "h
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version =  "1.0.229", features = ["derive"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-topcoat = { version = "0.11.0", default-features = false, features = ["asset", "cookie", "discover", "font", "icon", "router", "runtime", "serve", "session", "view", "tailwind", "ui", "icon-iconify"] }
+topcoat = { version = "0.11.0", default-features = false, features = ["asset", "cookie", "discover", "font", "font-fontsource", "icon", "router", "runtime", "serve", "session", "view", "tailwind", "ui", "icon-iconify"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "time", "json", "macros", "migrate"] }

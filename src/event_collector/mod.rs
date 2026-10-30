@@ -52,15 +52,19 @@ pub async fn create_calendar(
 }
 
 fn create_event_from_page(page: &Page, config: &CalendarConfig) -> Option<Event> {
-    let title = template::render(&config.title_template, &page.properties, &page.url).ok()?;
+    let title = config
+        .title_template
+        .render(&page.properties, &page.url)
+        .ok()?;
 
     let mut event = Event::new();
     event.summary(&title);
     event.uid(&page.id);
 
     if !config.description_template.is_empty()
-        && let Ok(description) =
-            template::render(&config.description_template, &page.properties, &page.url)
+        && let Ok(description) = config
+            .description_template
+            .render(&page.properties, &page.url)
         && !description.is_empty()
     {
         event.description(&description);
@@ -68,14 +72,14 @@ fn create_event_from_page(page: &Page, config: &CalendarConfig) -> Option<Event>
 
     if !config.location_template.is_empty()
         && let Ok(location) =
-            template::render(&config.location_template, &page.properties, &page.url)
+            config.location_template.render(&page.properties, &page.url)
         && !location.is_empty()
     {
         event.location(&location);
     }
 
     if !config.url_template.is_empty()
-        && let Ok(url) = template::render(&config.url_template, &page.properties, &page.url)
+        && let Ok(url) = config.url_template.render(&page.properties, &page.url)
         && !url.is_empty()
     {
         event.url(&url);
@@ -173,9 +177,9 @@ mod tests {
 
     fn template(src: &str) -> Template {
         if src.is_empty() {
-            Template::new()
+            Template::default()
         } else {
-            vec![Segment::Field(src.to_owned())]
+            vec![Segment::Field(src.to_owned())].into()
         }
     }
 
@@ -183,7 +187,7 @@ mod tests {
         CalendarConfig {
             date_col: "When".to_owned(),
             title_template: template("Name"),
-            description_template: Template::new(),
+            description_template: Template::default(),
             location_template,
             url_template,
         }
@@ -202,7 +206,7 @@ mod tests {
     #[test]
     fn omits_empty_location_and_url() {
         let event =
-            create_event_from_page(&page(), &config(Template::new(), Template::new())).unwrap();
+            create_event_from_page(&page(), &config(Template::default(), Template::default())).unwrap();
 
         assert_eq!(event.get_location(), None);
         assert_eq!(event.get_url(), None);

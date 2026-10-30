@@ -8,3 +8,5 @@ pub mod theme_button;
 pub mod avatar;
 pub mod popover;
 pub mod floating;
+pub mod tabs;
+pub mod calendar_editor;

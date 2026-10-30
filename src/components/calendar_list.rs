@@ -1,7 +1,7 @@
 use crate::{
-    calendar::delete_calendar,
     components::{
         button::{ButtonSize, ButtonVariant, button, button_variants},
+        calendar_editor::delete_calendar,
         input::input,
     },
     db::Repo,
