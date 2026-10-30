@@ -11,12 +11,16 @@ use crate::{
     db::Repo,
     dto::DatasourceDto,
     middleware::{current_user, require_api},
-    notion_api::types::page::{PageDesc, PagePropertyTpye},
+    notion_api::{
+        NotionApiError,
+        types::page::{PageDesc, PagePropertyTpye},
+    },
 };
 use topcoat::{
     Result,
     context::{Cx, app_context},
     icon::{icon, iconify},
+    router::error::see_other,
     runtime::{Event, procedure, shard, signal},
     session,
     view::{View, attributes, component, element_id, view},
@@ -141,10 +145,17 @@ fn source_eligible(source: &PageDesc) -> bool {
 #[shard]
 async fn datasource_results(cx: &Cx, query: String) -> Result<impl View> {
     let api = require_api(cx).await?;
-    let sources = api
-        .search_datasources(&query)
-        .await
-        .map_err(topcoat::Error::msg)?;
+    let sources = match api.search_datasources(&query).await {
+        Ok(sources) => sources,
+        Err(err) => {
+            return if NotionApiError::is_unauthorized(&err) {
+                session::stop(cx).await?;
+                Err(see_other("/").into())
+            } else {
+                Err(topcoat::Error::msg(err))
+            };
+        }
+    };
 
     struct SourceRow {
         id: String,

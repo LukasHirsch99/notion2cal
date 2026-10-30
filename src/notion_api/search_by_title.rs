@@ -65,7 +65,6 @@ impl NotionApi {
                 },
             )
             .await?
-            .error_for_status()?
             .json::<SearchRes>()
             .await?
             .results)

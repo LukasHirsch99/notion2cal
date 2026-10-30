@@ -12,19 +12,22 @@ use crate::{
         template::{self, PAGE_URL_FIELD, Template},
     },
     middleware::{current_user, require_api},
-    notion_api::{NotionApi, query_datasource::DataSource, types::page::PagePropertyTpye},
+    notion_api::{
+        NotionApi, NotionApiError, query_datasource::DataSource, types::page::PagePropertyTpye,
+    },
 };
 use topcoat::{
     Result,
     context::{Cx, app_context},
     router::{
         StatusCode,
-        error::RouterErrorExt,
+        error::{RouterErrorExt, see_other},
         page, path_param,
         response::{IntoResponse, Response},
         route,
     },
     runtime::{Event, procedure, signal},
+    session,
     view::{View, attributes, component, view},
 };
 use uuid::Uuid;
@@ -73,10 +76,17 @@ fn optional_template(
 async fn configure_calendar(cx: &Cx) -> Result<impl View> {
     let api = require_api(cx).await?;
     let datasource_id = *path_param::<DatasourceId>(cx)?;
-    let datasource = api
-        .retrieve_datasource(&datasource_id)
-        .await
-        .map_err(topcoat::Error::msg)?;
+    let datasource = match api.retrieve_datasource(&datasource_id).await {
+        Ok(source) => source,
+        Err(err) => {
+            return if NotionApiError::is_unauthorized(&err) {
+                session::stop(cx).await?;
+                Err(see_other("/").into())
+            } else {
+                Err(topcoat::Error::msg(err))
+            };
+        }
+    };
 
     let title = datasource_title(&datasource);
     let date_columns = date_columns(&datasource);

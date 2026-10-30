@@ -1,17 +1,39 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, fmt};
 
-use reqwest::{Response, header};
+use reqwest::{Response, StatusCode, header};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 
 pub mod common;
 pub mod query_datasource;
+pub mod revoke_token;
 pub mod search_by_title;
 pub mod token;
 pub mod types;
-pub mod revoke_token;
 
-pub const BASE_URL: &str = "https://api.notion.com/v1";
+const BASE_URL: &str = "https://api.notion.com/v1";
+
+#[derive(Debug)]
+pub enum NotionApiError {
+    Unauthorized,
+}
+
+impl fmt::Display for NotionApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NotionApiError::Unauthorized => f.write_str("Notion API returned 401 Unauthorized"),
+        }
+    }
+}
+
+impl std::error::Error for NotionApiError {}
+
+impl NotionApiError {
+    /// True when the error, including anything wrapped by anyhow, is a Notion 401.
+    pub fn is_unauthorized(error: &anyhow::Error) -> bool {
+        matches!(error.downcast_ref::<Self>(), Some(Self::Unauthorized))
+    }
+}
 
 #[derive(Clone)]
 pub struct NotionApi {
@@ -31,6 +53,11 @@ impl NotionApi {
             header::HeaderValue::from_str(notion_version).unwrap(),
         );
 
+        let mut auth =
+            header::HeaderValue::from_str(&format!("Bearer {}", token.expose_secret())).unwrap();
+        auth.set_sensitive(true);
+        headers.insert(header::AUTHORIZATION, auth);
+
         let client = reqwest::Client::builder()
             .default_headers(headers)
             .build()
@@ -38,25 +65,34 @@ impl NotionApi {
         NotionApi { client, token }
     }
 
-    async fn get(&self, path: &str) -> reqwest::Result<Response> {
-        self.client
-            .get(format!("{BASE_URL}/{path}"))
-            .bearer_auth(self.token.expose_secret())
-            .send()
-            .await
+    async fn send(&self, request: reqwest::RequestBuilder) -> anyhow::Result<Response> {
+        let response = request.send().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        if response.status() == StatusCode::UNAUTHORIZED {
+            return Err(NotionApiError::Unauthorized.into());
+        }
+        Ok(response.error_for_status()?)
+    }
+
+    async fn get(&self, path: &str) -> anyhow::Result<Response> {
+        self.send(
+            self.client
+                .get(format!("{BASE_URL}/{path}"))
+                .bearer_auth(self.token.expose_secret()),
+        )
+        .await
     }
 
     async fn post<T>(&self, path: &str, json: &T) -> anyhow::Result<Response>
     where
         T: Serialize + ?Sized,
     {
-        self.client
-            .post(format!("{BASE_URL}/{path}"))
-            .bearer_auth(self.token.expose_secret())
-            .json(json)
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))
+        self.send(
+            self.client
+                .post(format!("{BASE_URL}/{path}"))
+                .bearer_auth(self.token.expose_secret())
+                .json(json),
+        )
+        .await
     }
 
     async fn post_with_params<T, I, K, V>(
@@ -79,12 +115,12 @@ impl NotionApi {
             None => reqwest::Url::parse(&base_url)
                 .map_err(|_| anyhow::anyhow!("Could not parse url {base_url}"))?,
         };
-        self.client
-            .post(url)
-            .bearer_auth(self.token.expose_secret())
-            .json(json)
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))
+        self.send(
+            self.client
+                .post(url)
+                .bearer_auth(self.token.expose_secret())
+                .json(json),
+        )
+        .await
     }
 }

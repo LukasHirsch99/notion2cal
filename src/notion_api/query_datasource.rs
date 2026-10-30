@@ -599,7 +599,6 @@ impl NotionApi {
                 Some(params),
             )
             .await?
-            .error_for_status()?
             .json::<DatasourceQueryRes>()
             .await?)
     }
